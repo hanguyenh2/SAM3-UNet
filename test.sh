@@ -1,6 +1,8 @@
+#!/bin/bash
+
 CUDA_VISIBLE_DEVICES="0" \
 python test.py \
---checkpoint "<set your checkpoint path here>" \
---test_image_path "<set your testing image dir here>" \
---test_gt_path "<set your testing mask dir here>" \
---save_path "<set your prediction results dir here>"
+--checkpoint "../20260318/" \
+--save_path "../20260318_results/" \
+--test_image_path "/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_test/images/" \
+--test_gt_path "/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_test/masks/"

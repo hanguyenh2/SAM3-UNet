@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
 from iopath.common.file_io import g_pathmgr
+
 from sam3.model.decoder import (
     TransformerDecoder,
     TransformerDecoderLayer,
@@ -23,9 +24,11 @@ from sam3.model.memory import (
     SimpleMaskEncoder,
 )
 from sam3.model.model_misc import (
-    DotProductScoring,
     MLP,
-    MultiheadAttentionWrapper as MultiheadAttention,
+    DotProductScoring,
+)
+from sam3.model.model_misc import MultiheadAttentionWrapper as MultiheadAttention
+from sam3.model.model_misc import (
     TransformerWrapper,
 )
 from sam3.model.necks import Sam3DualViTDetNeck
@@ -70,7 +73,7 @@ def _create_vit_backbone(compile_mode=None):
     """Create ViT backbone for visual feature extraction."""
     return ViT(
         img_size=1008,
-        pretrain_img_size=336,
+        pretrain_img_size=672,
         patch_size=14,
         embed_dim=1024,
         depth=32,
@@ -233,14 +236,6 @@ def _create_geometry_encoder():
     """Create geometry encoder with all its components."""
     # Create position encoding for geometry encoder
     geo_pos_enc = _create_position_encoding()
-    # Create CX block for fuser
-    cx_block = CXBlock(
-        dim=256,
-        kernel_size=7,
-        padding=3,
-        layer_scale_init_value=1.0e-06,
-        use_dwconv=True,
-    )
     # Create geometry encoder layer
     geo_layer = TransformerEncoderLayer(
         activation="relu",
@@ -526,9 +521,7 @@ def _load_checkpoint(model, checkpoint_path):
         ckpt = torch.load(f, map_location="cpu", weights_only=True)
     if "model" in ckpt and isinstance(ckpt["model"], dict):
         ckpt = ckpt["model"]
-    sam3_image_ckpt = {
-        k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
-    }
+    sam3_image_ckpt = {k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k}
     if model.inst_interactive_predictor is not None:
         sam3_image_ckpt.update(
             {
@@ -603,9 +596,7 @@ def build_sam3_image_model(
 
     # Create segmentation head if enabled
     segmentation_head = (
-        _create_segmentation_head(compile_mode=compile_mode)
-        if enable_segmentation
-        else None
+        _create_segmentation_head(compile_mode=compile_mode) if enable_segmentation else None
     )
 
     # Create geometry encoder
@@ -788,6 +779,4 @@ def build_sam3_video_model(
 
 
 def build_sam3_video_predictor(*model_args, gpus_to_use=None, **model_kwargs):
-    return Sam3VideoPredictorMultiGPU(
-        *model_args, gpus_to_use=gpus_to_use, **model_kwargs
-    )
+    return Sam3VideoPredictorMultiGPU(*model_args, gpus_to_use=gpus_to_use, **model_kwargs)
