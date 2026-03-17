@@ -156,35 +156,30 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sam3_path",
         type=str,
-        required=True,
         default="/data1/workspace/ai_shared_workspace/model_zoo_shared/sam3/sam3.pt",
         help="path to the sam3 pretrained pth",
     )
     parser.add_argument(
         "--train_image_path",
         type=str,
-        required=True,
         default="/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_train/images/",
         help="path to the image that used to train the model",
     )
     parser.add_argument(
         "--train_mask_path",
         type=str,
-        required=True,
         default="/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_train/masks/",
         help="path to the mask file for training",
     )
     parser.add_argument(
         "--test_image_path",
         type=str,
-        required=True,
         default="/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_test/images/",
         help="path to the image that used to evaluate the model",
     )
     parser.add_argument(
         "--test_gt_path",
         type=str,
-        required=True,
         default="/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_test/masks/",
         help="path to the mask file for evaluating",
     )
@@ -192,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=0.0002, help="learning rate")
     parser.add_argument("--batch_size", default=32, type=int)
     parser.add_argument("--weight_decay", default=5e-4, type=float)
-    parser.add_argument("--save_interval", default=5, type=int)
+    parser.add_argument("--save_interval", default=10, type=int)
     parser.add_argument("--base_mean_iou", default=0.8, type=float)
     parser.add_argument("--auto_save_iou", default=0.85, type=float)
     args = parser.parse_args()
