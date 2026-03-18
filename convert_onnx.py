@@ -47,6 +47,10 @@ def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
             input_names=input_names,
             output_names=output_names,
             verbose=verbose,
+            # Upgrade opset_version to 19 or 20
+            opset_version=19,
+            # This helps with complex tensor shapes
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
         )
         print(f"Model successfully exported to ONNX: {onnx_path}")
     except Exception as e:
