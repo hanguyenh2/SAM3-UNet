@@ -52,16 +52,21 @@ def compute_axial_cis(
     t_x, t_y = init_t_xy(end_x, end_y, scale_pos, offset)
     freqs_x = torch.outer(t_x, freqs_x)
     freqs_y = torch.outer(t_y, freqs_y)
-    freqs_cis_x = torch.polar(torch.ones_like(freqs_x), freqs_x)
-    freqs_cis_y = torch.polar(torch.ones_like(freqs_y), freqs_y)
-    return torch.cat([freqs_cis_x, freqs_cis_y], dim=-1)
+
+    # FIX: Instead of torch.polar, we store cos and sin in the last dimension (size 2)
+    # This makes the tensor shape [L, dim//2, 2] instead of a complex tensor
+    freqs_cis_x = torch.stack([torch.cos(freqs_x), torch.sin(freqs_x)], dim=-1)
+    freqs_cis_y = torch.stack([torch.cos(freqs_y), torch.sin(freqs_y)], dim=-1)
+
+    return torch.cat([freqs_cis_x, freqs_cis_y], dim=-2)  # Concatenate on the frequency dim
 
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     ndim = x.ndim
     assert 0 <= 1 < ndim
-    assert freqs_cis.shape == (x.shape[-2], x.shape[-1])
-    shape = [d if i >= ndim - 2 else 1 for i, d in enumerate(x.shape)]
+    # freqs_cis now has shape [L, D, 2]
+    assert freqs_cis.shape[:2] == (x.shape[-3], x.shape[-2])
+    shape = [d if i >= ndim - 3 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
 
@@ -71,23 +76,33 @@ def apply_rotary_enc(
     freqs_cis: torch.Tensor,
     repeat_freqs_k: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = (
-        torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-        if xk.shape[-2] != 0
-        else None
-    )
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
-    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+    # xq shape: [B, nHead, L, D] -> Reshape to [B, nHead, L, D//2, 2]
+    xq_ = xq.float().reshape(*xq.shape[:-1], -1, 2)
+    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2) if xk.shape[-2] != 0 else None
+
+    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)  # Shape: [1, 1, L, D//2, 2]
+
+    # Real-number rotation logic:
+    # (x_r + x_i*i) * (f_r + f_i*i) = (x_r*f_r - x_i*f_i) + (x_r*f_i + x_i*f_r)i
+    def rotate(x, f):
+        x_r, x_i = x[..., 0], x[..., 1]
+        f_r, f_i = f[..., 0], f[..., 1]
+        out_r = x_r * f_r - x_i * f_i
+        out_i = x_r * f_i + x_i * f_r
+        return torch.stack([out_r, out_i], dim=-1).flatten(3)
+
+    xq_out = rotate(xq_, freqs_cis)
+
     if xk_ is None:
-        # no keys to rotate, due to dropout
-        return xq_out.type_as(xq).to(xq.device), xk
-    # repeat freqs along seq_len dim to match k seq_len
+        return xq_out.type_as(xq), xk
+
     if repeat_freqs_k:
-        r = xk_.shape[-2] // xq_.shape[-2]
-        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 2)), r, 1)
-    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
-    return xq_out.type_as(xq).to(xq.device), xk_out.type_as(xk).to(xk.device)
+        r = xk_.shape[-3] // xq_.shape[-3]
+        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
+
+    xk_out = rotate(xk_, freqs_cis)
+
+    return xq_out.type_as(xq), xk_out.type_as(xk)
 
 
 def window_partition(x: Tensor, window_size: int) -> Tuple[Tensor, Tuple[int, int]]:
@@ -129,9 +144,7 @@ def window_unpartition(
     Hp, Wp = pad_hw
     H, W = hw
     B = windows.shape[0] // (Hp * Wp // window_size // window_size)
-    x = windows.reshape(
-        B, Hp // window_size, Wp // window_size, window_size, window_size, -1
-    )
+    x = windows.reshape(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, Hp, Wp, -1)
 
     if Hp > H or Wp > W:
@@ -289,9 +302,7 @@ def concat_rel_pos(
     eye_w = eye_w.view(1, 1, k_w, k_w).expand([B, k_h, k_w, k_w])
 
     q = torch.cat([r_q * scale_ratio, rel_h, rel_w], dim=-1).view(B, q_h * q_w, -1)
-    k = torch.cat([k.view(B, k_h, k_w, -1), eye_h, eye_w], dim=-1).view(
-        B, k_h * k_w, -1
-    )
+    k = torch.cat([k.view(B, k_h, k_w, -1), eye_h, eye_w], dim=-1).view(B, k_h * k_w, -1)
 
     return q, k
 
@@ -400,12 +411,8 @@ class Attention(nn.Module):
         assert self.input_size is not None
         assert self.cls_token is False, "not supported"
         # initialize relative positional embeddings
-        self.rel_pos_h = nn.Parameter(
-            torch.zeros(2 * self.input_size[0] - 1, self.head_dim)
-        )
-        self.rel_pos_w = nn.Parameter(
-            torch.zeros(2 * self.input_size[1] - 1, self.head_dim)
-        )
+        self.rel_pos_h = nn.Parameter(torch.zeros(2 * self.input_size[0] - 1, self.head_dim))
+        self.rel_pos_w = nn.Parameter(torch.zeros(2 * self.input_size[1] - 1, self.head_dim))
 
         if not rel_pos_zero_init:
             trunc_normal_(self.rel_pos_h, std=0.02)
@@ -446,12 +453,11 @@ class Attention(nn.Module):
             scale_pos=scale_pos,
         )
         if self.cls_token:
-            t = torch.zeros(
-                self.head_dim // 2,
-                dtype=torch.float32,
-                device=freqs_cis.device,
+            # Create a [1, D//2, 2] tensor for the class token (no rotation)
+            cls_freqs_cis = torch.zeros(
+                1, self.head_dim // 2, 2, dtype=torch.float32, device=freqs_cis.device
             )
-            cls_freqs_cis = torch.polar(torch.ones_like(t), t)[None, :]
+            cls_freqs_cis[..., 0] = 1.0  # Cosine(0) = 1, Sine(0) = 0
             freqs_cis = torch.cat([cls_freqs_cis, freqs_cis], dim=0)
 
         self.register_buffer("freqs_cis", freqs_cis)
@@ -502,11 +508,7 @@ class Attention(nn.Module):
         x = F.scaled_dot_product_attention(q, k, v)
 
         if ndim == 4:
-            x = (
-                x.view(B, self.num_heads, H, W, -1)
-                .permute(0, 2, 3, 1, 4)
-                .reshape(B, H, W, -1)
-            )
+            x = x.view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
         else:
             x = x.view(B, self.num_heads, L, -1).permute(0, 2, 1, 3).reshape(B, L, -1)
 
@@ -576,9 +578,7 @@ class Block(nn.Module):
             rope_interp=rope_interp,
             cls_token=cls_token,
         )
-        self.ls1 = (
-            LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
-        )
+        self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.norm2 = norm_layer(dim)
@@ -588,9 +588,7 @@ class Block(nn.Module):
             act_layer=act_layer,
             drop=(dropout, 0.0),
         )
-        self.ls2 = (
-            LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
-        )
+        self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.dropout = nn.Dropout(dropout)
         self.window_size = window_size
 
@@ -706,9 +704,7 @@ class ViT(nn.Module):
         self.retain_cls_token = retain_cls_token
         if self.retain_cls_token:
             assert pretrain_use_cls_token
-            assert (
-                len(window_block_indexes) == 0
-            ), "windowing not supported with cls token"
+            assert len(window_block_indexes) == 0, "windowing not supported with cls token"
 
             assert sum(self.rel_pos_blocks) == 0, "rel pos not supported with cls token"
 
@@ -734,9 +730,7 @@ class ViT(nn.Module):
 
         if self.use_abs_pos:
             # Initialize absolute positional embedding with pretrain image size.
-            num_patches = (pretrain_img_size // patch_size) * (
-                pretrain_img_size // patch_size
-            )
+            num_patches = (pretrain_img_size // patch_size) * (pretrain_img_size // patch_size)
             num_positions = (num_patches + 1) if pretrain_use_cls_token else num_patches
             self.pos_embed = nn.Parameter(torch.zeros(1, num_positions, embed_dim))
         else:
@@ -781,9 +775,7 @@ class ViT(nn.Module):
 
         self.return_interm_layers = return_interm_layers
         self.channel_list = (
-            [embed_dim] * len(self.full_attn_ids)
-            if return_interm_layers
-            else [embed_dim]
+            [embed_dim] * len(self.full_attn_ids) if return_interm_layers else [embed_dim]
         )
 
         if self.pos_embed is not None:
@@ -795,9 +787,7 @@ class ViT(nn.Module):
         self.apply(self._init_weights)
 
         if compile_mode is not None:
-            self.forward = torch.compile(
-                self.forward, mode=compile_mode, fullgraph=True
-            )
+            self.forward = torch.compile(self.forward, mode=compile_mode, fullgraph=True)
             if self.use_act_checkpoint and self.training:
                 torch._dynamo.config.optimize_ddp = False
 
@@ -850,9 +840,9 @@ class ViT(nn.Module):
                 else:
                     assert feats.ndim == 3
                     h = w = math.sqrt(feats.shape[1])
-                    feats = feats.reshape(
-                        feats.shape[0], h, w, feats.shape[-1]
-                    ).permute(0, 3, 1, 2)
+                    feats = feats.reshape(feats.shape[0], h, w, feats.shape[-1]).permute(
+                        0, 3, 1, 2
+                    )
 
                 outputs.append(feats)
 

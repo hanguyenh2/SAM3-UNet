@@ -34,23 +34,16 @@ def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
     model.eval()  # Set to evaluation mode for export (good practice)
     print("Model set to evaluation mode for ONNX export.")
 
-    input_names = ["images"]
-    output_names = ["output"]  # Consider more descriptive names
-
     try:
         torch.onnx.export(
             model,
             dummy_input,
             onnx_path,
             export_params=True,
+            opset_version=17,  # Opset 17+ is usually enough once complex types are removed
             do_constant_folding=True,
-            input_names=input_names,
-            output_names=output_names,
-            verbose=verbose,
-            # Upgrade opset_version to 19 or 20
-            opset_version=19,
-            # This helps with complex tensor shapes
-            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+            input_names=["images"],
+            output_names=["output"],
         )
         print(f"Model successfully exported to ONNX: {onnx_path}")
     except Exception as e:
