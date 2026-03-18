@@ -63,8 +63,8 @@ def compute_axial_cis(
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     ndim = x.ndim
     assert 0 <= 1 < ndim
-    # freqs_cis now has shape [L, D, 2]
-    shape = [d if i >= ndim - 3 else 1 for i, d in enumerate(x.shape)]
+    # Hardcode the shape expansion to avoid inferred -1 dimensions
+    shape = [d if i == ndim - 2 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
 
@@ -95,11 +95,6 @@ def apply_rotary_enc(
         return torch.stack([out_r, out_i], dim=-1).flatten(3)
 
     xq_out = rotate(xq_, freqs_cis)
-
-    # FIX: Check tensor size instead of using 'if xk_ is None'
-    # This ensures the ONNX graph contains the logic for both cases.
-    if xk.numel() == 0:
-        return xq_out.type_as(xq), xk
 
     # FIX: Handle frequency repetition for GQA/MQA without Python branching where possible
     if repeat_freqs_k:
@@ -238,13 +233,10 @@ def get_abs_pos(
         cls_pos = abs_pos[:, :1]
         abs_pos = abs_pos[:, 1:]
 
-    # FIX: Use the tensor's own shape to determine grid size.
-    # We use math.sqrt here because the 'abs_pos' parameter count (196, 256, etc.)
-    # is usually fixed in the checkpoint and won't change per-inference.
-    xy_num = abs_pos.shape[1]
-    # Since abs_pos is a Parameter, its shape is constant.
-    # We just need to avoid the 'TracerWarning' by using a standard integer.
-    grid_size = torch.sqrt(torch.tensor(xy_num, dtype=torch.float32)).to(torch.int32)
+    # abs_pos.shape[1] is a constant for the model (e.g., 197).
+    # Use standard math outside the tensor flow for the grid size,
+    # as it doesn't change based on image resolution.
+    grid_size = int(abs_pos.shape[1] ** 0.5)
 
     # Reshape to 4D for spatial operations
     # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
