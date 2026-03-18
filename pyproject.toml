@@ -36,9 +36,11 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "scikit-image>=0.24.0",
     "einops>=0.8.2",
-    "decord>=0.6.0",
     "pycocotools>=2.0.11",
     "psutil>=7.2.2",
+    "onnxruntime; sys_platform == 'darwin'",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "decord; sys_platform != 'darwin'",
 ]
 
 [project.optional-dependencies]
@@ -65,11 +67,14 @@ notebooks = [
     "ipycanvas",
     "ipympl",
     "pycocotools",
-    "decord",
     "opencv-python",
     "einops",
     "scikit-image",
     "scikit-learn",
+    "onnxruntime; sys_platform == 'darwin'",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "decord; sys_platform != 'darwin'",
+
 ]
 train = [
     "hydra-core",
@@ -82,6 +87,12 @@ train = [
     "fairscale",
     "scikit-image",
     "scikit-learn",
+]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'"
 ]
 
 [project.urls]
