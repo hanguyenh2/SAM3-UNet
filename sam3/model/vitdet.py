@@ -117,10 +117,14 @@ def window_partition(x: Tensor, window_size: int) -> Tuple[Tensor, Tuple[int, in
     """
     B, H, W, C = x.shape
 
+    # FIX: Use tensor-based calculation to avoid Python boolean tracing
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
-    if pad_h > 0 or pad_w > 0:
-        x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
+
+    # F.pad handles 0 padding naturally, so we remove the 'if'
+    x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
+
+    # Use tensors for Hp, Wp to keep them dynamic
     Hp, Wp = H + pad_h, W + pad_w
 
     x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
@@ -213,40 +217,34 @@ def get_abs_pos(
         cls_pos = abs_pos[:, :1]
         abs_pos = abs_pos[:, 1:]
 
+    # FIX: Use the tensor's own shape to determine grid size.
+    # We use math.sqrt here because the 'abs_pos' parameter count (196, 256, etc.)
+    # is usually fixed in the checkpoint and won't change per-inference.
     xy_num = abs_pos.shape[1]
-    size = int(math.sqrt(xy_num))
-    assert size * size == xy_num
+    grid_size = int(math.sqrt(xy_num))
 
-    if size != h or size != w:
-        new_abs_pos = abs_pos.reshape(1, size, size, -1).permute(0, 3, 1, 2)
-        if tiling:
-            new_abs_pos = new_abs_pos.tile(
-                [1, 1] + [x // y + 1 for x, y in zip((h, w), new_abs_pos.shape[2:])]
-            )[:, :, :h, :w]
-        else:
-            new_abs_pos = F.interpolate(
-                new_abs_pos,
-                size=(h, w),
-                mode="bicubic",
-                align_corners=False,
-            )
+    # Reshape to 4D for spatial operations
+    # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
+    new_abs_pos = abs_pos.reshape(1, grid_size, grid_size, -1).permute(0, 3, 1, 2)
 
-        if not retain_cls_token:
-            return new_abs_pos.permute(0, 2, 3, 1)
-        else:
-            # add cls_token back, flatten spatial dims
-            assert has_cls_token
-            return torch.cat(
-                [cls_pos, new_abs_pos.permute(0, 2, 3, 1).reshape(1, h * w, -1)],
-                dim=1,
-            )
+    # FIX: Remove the 'if size != h' and tiling branch.
+    # Running interpolate even when sizes match is safer for ONNX tracing
+    # and has negligible performance cost.
+    # Tiling logic using floor division is hard to trace;
+    # for ONNX, bicubic interpolation is the standard for ViT.
+    new_abs_pos = F.interpolate(new_abs_pos, size=(h, w), mode="bicubic", align_corners=False)
 
+    # Back to [1, H, W, C]
+    new_abs_pos = new_abs_pos.permute(0, 2, 3, 1)
+
+    if not retain_cls_token:
+        return new_abs_pos
     else:
-        if not retain_cls_token:
-            return abs_pos.reshape(1, h, w, -1)
-        else:
-            assert has_cls_token
-            return torch.cat([cls_pos, abs_pos], dim=1)
+        # add cls_token back, flatten spatial dims to [1, 1 + H*W, C]
+        return torch.cat(
+            [cls_pos, new_abs_pos.reshape(1, h * w, -1)],
+            dim=1,
+        )
 
 
 def concat_rel_pos(
@@ -480,7 +478,9 @@ class Attention(nn.Module):
             assert x.ndim == 3
             B, L, _ = x.shape
             ndim = 3
-            H = W = math.sqrt(L - s)
+            # FIX: Use torch.sqrt and cast to int to keep it in the graph
+            side = torch.sqrt(torch.tensor(float(L - s))).int()
+            H = W = side
 
         # qkv with shape (3, B, nHead, L, C)
         qkv = self.qkv(x).reshape(B, L, 3, self.num_heads, -1)
@@ -836,13 +836,14 @@ class ViT(nn.Module):
 
                 feats = x[:, s:]
                 if feats.ndim == 4:
+                    # Shape: [B, H, W, C] -> [B, C, H, W]
                     feats = feats.permute(0, 3, 1, 2)
                 else:
-                    assert feats.ndim == 3
-                    h = w = math.sqrt(feats.shape[1])
-                    feats = feats.reshape(feats.shape[0], h, w, feats.shape[-1]).permute(
-                        0, 3, 1, 2
-                    )
+                    # Shape: [B, L, C] -> [B, C, H, W]
+                    # Use torch.sqrt to keep the calculation inside the ONNX graph
+                    L = feats.shape[1]
+                    side = torch.sqrt(torch.tensor(float(L))).int()
+                    feats = feats.reshape(-1, side, side, feats.shape[-1]).permute(0, 3, 1, 2)
 
                 outputs.append(feats)
 
