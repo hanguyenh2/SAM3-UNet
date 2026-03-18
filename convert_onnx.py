@@ -19,14 +19,6 @@ except ImportError:
 
 def convert_pth_to_onnx(model, dummy_input, onnx_path):
     model.eval()
-
-    # FIX: Force the Tracer to use the "Math" path for Attention.
-    # This prevents the tracer from creating a "black box" fused kernel
-    # that causes the 0.74 mismatch at high resolutions.
-    torch.backends.cuda.enable_flash_sdp(False)
-    torch.backends.cuda.enable_mem_efficient_sdp(False)
-    torch.backends.cuda.enable_math_sdp(True)
-
     print("Model set to evaluation mode for ONNX export.")
 
     try:
@@ -59,7 +51,7 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # 1. Initialize model
-    model = SAM3UNet(img_size=1008).to(device)
+    model = SAM3UNet(img_size=1344).to(device)
 
     # 2. Load and Transform State Dict
     print(f"Loading checkpoint: {args.checkpoint}")
@@ -69,6 +61,7 @@ if __name__ == "__main__":
     new_state_dict = {}
     for k, v in state_dict.items():
         if "freqs_cis" in k:
+            # If the checkpoint has complex tensors, convert them to real view [..., 2]
             new_state_dict[k] = torch.view_as_real(v) if torch.is_complex(v) else v
         else:
             new_state_dict[k] = v
@@ -77,7 +70,7 @@ if __name__ == "__main__":
     print("State dict loaded successfully with RoPE transformation.")
 
     # 3. Create dummy input
-    dummy_input = torch.randn(1, 3, 1008, 1008).to(device)
+    dummy_input = torch.randn(1, 3, 1344, 1344).to(device)
 
     # 4. Define output path
     checkpoint_name = os.path.splitext(os.path.basename(args.checkpoint))[0]

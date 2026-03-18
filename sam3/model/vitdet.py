@@ -9,6 +9,7 @@ Rope embedding code adopted from:
 2. https://github.com/naver-ai/rope-vit
 3. https://github.com/lucidrains/rotary-embedding-torch
 """
+
 import math
 from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
@@ -60,20 +61,12 @@ def compute_axial_cis(
     return torch.cat([freqs_cis_x, freqs_cis_y], dim=-2)  # Concatenate on the frequency dim
 
 
-def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
-    """
-    Reshape freqs_cis to be compatible with x for broadcasting.
-    x shape: [B, nHead, L, D//2, 2]
-    freqs_cis shape: [L, D//2, 2]
-    """
+def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     ndim = x.ndim
-    assert ndim >= 2
-
-    # Calculate the target shape based on the ACTUAL current tensor 'x'
-    # This prevents the 'size 36864' mismatch at 1008px
-    shape = [d if i == ndim - 2 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
-
-    # Use view to apply the dynamic shape
+    assert 0 <= 1 < ndim
+    # freqs_cis now has shape [L, D, 2]
+    assert freqs_cis.shape[:2] == (x.shape[-3], x.shape[-2])
+    shape = [d if i >= ndim - 3 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
 
@@ -85,13 +78,9 @@ def apply_rotary_enc(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     # xq shape: [B, nHead, L, D] -> Reshape to [B, nHead, L, D//2, 2]
     xq_ = xq.float().reshape(*xq.shape[:-1], -1, 2)
+    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2) if xk.shape[-2] != 0 else None
 
-    # FIX: Remove the 'if/else' check.
-    # Even if xk is empty, we reshape it. Reshaping an empty tensor is
-    # valid in both PyTorch and ONNX and keeps the graph linear.
-    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2)
-
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)  # Shape: [1, 1, L, D//2, 2]
 
     # Real-number rotation logic:
     # (x_r + x_i*i) * (f_r + f_i*i) = (x_r*f_r - x_i*f_i) + (x_r*f_i + x_i*f_r)i
@@ -100,21 +89,18 @@ def apply_rotary_enc(
         f_r, f_i = f[..., 0], f[..., 1]
         out_r = x_r * f_r - x_i * f_i
         out_i = x_r * f_i + x_i * f_r
-        # flatten(3) converts [..., D//2, 2] back to [..., D]
         return torch.stack([out_r, out_i], dim=-1).flatten(3)
 
     xq_out = rotate(xq_, freqs_cis)
 
-    # FIX: Handle frequency repetition for GQA/MQA without Python branching where possible
-    if repeat_freqs_k:
-        # Use torch.tensor for the ratio calculation to keep it in the graph
-        r = xk_.shape[-3] // xq_.shape[-3]
-        # We use a standard repeat here; ONNX handles this as a 'Tile' node
-        freqs_cis_k = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
-    else:
-        freqs_cis_k = freqs_cis
+    if xk_ is None:
+        return xq_out.type_as(xq), xk
 
-    xk_out = rotate(xk_, freqs_cis_k)
+    if repeat_freqs_k:
+        r = xk_.shape[-3] // xq_.shape[-3]
+        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
+
+    xk_out = rotate(xk_, freqs_cis)
 
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
@@ -131,14 +117,10 @@ def window_partition(x: Tensor, window_size: int) -> Tuple[Tensor, Tuple[int, in
     """
     B, H, W, C = x.shape
 
-    # FIX: Use tensor-based calculation to avoid Python boolean tracing
     pad_h = (window_size - H % window_size) % window_size
     pad_w = (window_size - W % window_size) % window_size
-
-    # F.pad handles 0 padding naturally, so we remove the 'if'
-    x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
-
-    # Use tensors for Hp, Wp to keep them dynamic
+    if pad_h > 0 or pad_w > 0:
+        x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
     Hp, Wp = H + pad_h, W + pad_w
 
     x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
@@ -159,25 +141,14 @@ def window_unpartition(
     Returns:
         x: unpartitioned sequences with [B, H, W, C].
     """
-    # 1. Unpack dimensions
     Hp, Wp = pad_hw
     H, W = hw
-
-    # 2. Calculate Batch size dynamically
-    # Use // for integer division; ONNX handles this well when inputs are tensors/ints
-    num_windows_h = Hp // window_size
-    num_windows_w = Wp // window_size
-    B = windows.shape[0] // (num_windows_h * num_windows_w)
-
-    # 3. Reshape and Permute to restore spatial dimensions [B, Hp, Wp, C]
-    x = windows.view(B, num_windows_h, num_windows_w, window_size, window_size, -1)
+    B = windows.shape[0] // (Hp * Wp // window_size // window_size)
+    x = windows.reshape(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, Hp, Wp, -1)
 
-    # 4. FIX: Remove the 'if' branch.
-    # Slicing is traced as a dynamic operation.
-    # If H == Hp, this slice effectively does nothing but keeps the graph valid.
-    x = x.narrow(1, 0, H).narrow(2, 0, W)
-
+    if Hp > H or Wp > W:
+        x = x[:, :H, :W, :]
     return x
 
 
@@ -242,33 +213,40 @@ def get_abs_pos(
         cls_pos = abs_pos[:, :1]
         abs_pos = abs_pos[:, 1:]
 
-    # Instead of: grid_size = int(abs_pos.shape[1] ** 0.5)
-    # Use the length of the parameter directly if it's a fixed size:
-    L = abs_pos.shape[1]
-    grid_size = int(math.sqrt(L))  # math.sqrt on a static int is safe from tracing
+    xy_num = abs_pos.shape[1]
+    size = int(math.sqrt(xy_num))
+    assert size * size == xy_num
 
-    # Reshape to 4D for spatial operations
-    # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
-    new_abs_pos = abs_pos.reshape(1, grid_size, grid_size, -1).permute(0, 3, 1, 2)
+    if size != h or size != w:
+        new_abs_pos = abs_pos.reshape(1, size, size, -1).permute(0, 3, 1, 2)
+        if tiling:
+            new_abs_pos = new_abs_pos.tile(
+                [1, 1] + [x // y + 1 for x, y in zip((h, w), new_abs_pos.shape[2:])]
+            )[:, :, :h, :w]
+        else:
+            new_abs_pos = F.interpolate(
+                new_abs_pos,
+                size=(h, w),
+                mode="bicubic",
+                align_corners=False,
+            )
 
-    # FIX: Remove the 'if size != h' and tiling branch.
-    # Running interpolate even when sizes match is safer for ONNX tracing
-    # and has negligible performance cost.
-    # Tiling logic using floor division is hard to trace;
-    # for ONNX, bicubic interpolation is the standard for ViT.
-    new_abs_pos = F.interpolate(new_abs_pos, size=(h, w), mode="bicubic", align_corners=False)
+        if not retain_cls_token:
+            return new_abs_pos.permute(0, 2, 3, 1)
+        else:
+            # add cls_token back, flatten spatial dims
+            assert has_cls_token
+            return torch.cat(
+                [cls_pos, new_abs_pos.permute(0, 2, 3, 1).reshape(1, h * w, -1)],
+                dim=1,
+            )
 
-    # Back to [1, H, W, C]
-    new_abs_pos = new_abs_pos.permute(0, 2, 3, 1)
-
-    if not retain_cls_token:
-        return new_abs_pos
     else:
-        # add cls_token back, flatten spatial dims to [1, 1 + H*W, C]
-        return torch.cat(
-            [cls_pos, new_abs_pos.reshape(1, h * w, -1)],
-            dim=1,
-        )
+        if not retain_cls_token:
+            return abs_pos.reshape(1, h, w, -1)
+        else:
+            assert has_cls_token
+            return torch.cat([cls_pos, abs_pos], dim=1)
 
 
 def concat_rel_pos(
@@ -502,9 +480,7 @@ class Attention(nn.Module):
             assert x.ndim == 3
             B, L, _ = x.shape
             ndim = 3
-            # FIX: Use torch.sqrt and cast to int to keep it in the graph
-            side = torch.sqrt(torch.tensor(float(L - s))).int()
-            H = W = side
+            H = W = math.sqrt(L - s)
 
         # qkv with shape (3, B, nHead, L, C)
         qkv = self.qkv(x).reshape(B, L, 3, self.num_heads, -1)
@@ -860,14 +836,13 @@ class ViT(nn.Module):
 
                 feats = x[:, s:]
                 if feats.ndim == 4:
-                    # Shape: [B, H, W, C] -> [B, C, H, W]
                     feats = feats.permute(0, 3, 1, 2)
                 else:
-                    # Shape: [B, L, C] -> [B, C, H, W]
-                    # Use torch.sqrt to keep the calculation inside the ONNX graph
-                    L = feats.shape[1]
-                    side = torch.sqrt(torch.tensor(float(L))).int()
-                    feats = feats.reshape(-1, side, side, feats.shape[-1]).permute(0, 3, 1, 2)
+                    assert feats.ndim == 3
+                    h = w = math.sqrt(feats.shape[1])
+                    feats = feats.reshape(feats.shape[0], h, w, feats.shape[-1]).permute(
+                        0, 3, 1, 2
+                    )
 
                 outputs.append(feats)
 

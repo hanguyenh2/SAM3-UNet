@@ -454,7 +454,7 @@ if __name__ == "__main__":
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     # 1. Load train data
-    dataset = FullDataset(train_image_path, train_mask_path, 1008, mode="train")
+    dataset = FullDataset(train_image_path, train_mask_path, 1344, mode="train")
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=8)
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
