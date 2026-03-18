@@ -51,25 +51,30 @@ def main(args):
 
     # 7. Train
     os.makedirs(args.save_path, exist_ok=True)
-    epoch_loss = 2.0
-    base_mean_iou = args.base_mean_iou
-    auto_save_iou = args.auto_save_iou
-    save_interval = args.save_interval
+    epoch_loss = 2.0  # Init value for epoch_loss
+    base_mean_iou = args.base_mean_iou  # All Checkpoint better than this base value will be saved
+    save_interval = args.save_interval  # Interval to save checkpoint every
+    log_path = os.path.join(args.save_path, "log.txt")  # Path to log file
     for epoch in range(args.epoch):
         # 7.1. Train phase
         print("Training:")
         model.train()  # Set model to training mode
         for i, batch in enumerate(dataloader):
+            # 7.1.1 Get image and gt mask
             x = batch["image"]
             target = batch["label"]
+            # 7.1.2. Load image and gt mask to device
             x = x.to(device)
             target = target.to(device)
+            # 7.1.3. Predict and calculate loss
             optim.zero_grad()
             pred = model(x)
             loss = structure_loss(pred, target)
+            # 7.1.4. Learn from loss
             epoch_loss = loss.item()
             loss.backward()
             optim.step()
+            # 7.1.5. Log every 10 batches
             if i % 10 == 0:
                 print("epoch-{}-{}: loss:{}".format(epoch + 1, i + 1, epoch_loss))
         scheduler.step()
@@ -87,52 +92,51 @@ def main(args):
                 image = image.to(device)
                 # 7.2.2. Model predict, Save process time
                 res_padded = model(image)
-                # Remove padding
+                # 7.2.3. Remove padding
                 pad_left, pad_top, pad_right, pad_bottom = padding
                 res = res_padded[:, :, pad_top : 672 - pad_bottom, pad_left : 672 - pad_right]
-                # Output conversion
+                # 7.2.4. Output conversion
                 res = F.interpolate(res, size=gt.shape, mode="bilinear", align_corners=False)
                 res = res.sigmoid().data.cpu()
                 res = res.numpy().squeeze()
                 res = (res - res.min()) / (res.max() - res.min() + 1e-8)
                 res = (res * 255).astype(np.uint8)
                 gt = np.asarray(gt, np.float32)
-                # Evaluate
+                # 7.2.5. Evaluate
                 result = evaluate_segmentation_performance(res, gt)
-                # 2.4. Save result
+                # 7.2.6. Save result
                 results.append(result)
-                # Print for status
+                # 7.2.7. Log every 10 images
                 if i % 10 == 0:
                     print(".", end="", flush=True)
 
-        # Reset test_loader index
+        # 7.2.8. Reset test_loader index
         test_loader.reset_index()
+        # 7.2.9. Evaluate dataset
         final_result = evaluate_dataset(results)
-        print_eval_report(final_result, title=f"epoch-{epoch + 1}: loss: {epoch_loss}")
+        # 7.2.10. Print and log evaluation results
+        epoch_name = f"epoch-{epoch + 1}_loss-{epoch_loss:.3f}"
+        print_eval_report(final_result, title=epoch_name, log_path=log_path)
 
         # 7.3. Save checkpoint
         mean_iou = final_result[MIOU]
-
+        # 7.3.1. Save best model so far
         if mean_iou > base_mean_iou:
+            # Set new base_mean_iou
             base_mean_iou = mean_iou
+            # Set save_model_path
             save_model_path = os.path.join(
                 args.save_path,
-                f"SAM3-UNet_epoch-{epoch + 1}_loss-{epoch_loss:.3f}_iou-{mean_iou:.3f}.pth",
+                f"SAM3-UNet_{epoch_name}_iou-{mean_iou:.3f}.pth",
             )
+            # Save checkpoint and print status
             torch.save(model.state_dict(), save_model_path)
             print("Saving Snapshot best:", save_model_path)
-        elif mean_iou > auto_save_iou:
-            save_model_path = os.path.join(
-                args.save_path,
-                f"SAM3-UNet_epoch-{epoch + 1}_loss-{epoch_loss:.3f}_iou-{mean_iou:.3f}.pth",
-            )
-            torch.save(model.state_dict(), save_model_path)
-            print("Auto Saving Good Snapshot:", save_model_path)
+        # 7.3.2. Save latest model every interval
         elif (epoch + 1) % save_interval == 0 or (epoch + 1) == args.epoch:
-            save_model_path = os.path.join(
-                args.save_path,
-                f"SAM3-UNet_epoch-{epoch + 1}_loss-{epoch_loss:.3f}_iou-{mean_iou:.3f}.pth",
-            )
+            # Set save_model_path
+            save_model_path = os.path.join(args.save_path, "SAM3-UNet_epoch-latest.pth")
+            # Save checkpoint and print status
             torch.save(model.state_dict(), save_model_path)
             print("Saving Snapshot:", save_model_path)
 
@@ -189,7 +193,6 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", default=5e-4, type=float)
     parser.add_argument("--save_interval", default=10, type=int)
     parser.add_argument("--base_mean_iou", default=0.8, type=float)
-    parser.add_argument("--auto_save_iou", default=0.85, type=float)
     args = parser.parse_args()
     # seed_torch(1024)
     main(args)

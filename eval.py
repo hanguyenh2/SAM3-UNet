@@ -20,14 +20,15 @@ MIOU = "mIoU"
 MDICE = "mDice"
 
 
-def print_eval_report(results: dict, title: str = "Evaluation Results"):
+def print_eval_report(results: dict, title: str = "Evaluation Results", log_path: str = None):
     """
     Prints a formatted, easy-to-read summary of the evaluation dictionary.
     """
     width = max(len(title) + 2, 25)
-    print(f"\n{'=' * width}")
-    print(f"{title.upper():^{width}}")
-    print(f"{'-' * width}")
+    report = []
+    report.append(f"\n{'=' * width}")
+    report.append(f"{title.upper():^{width}}")
+    report.append(f"{'-' * width}")
 
     for metric, value in results.items():
         # Clean up key names (e.g., 'total_mIoU' -> 'total mIou')
@@ -35,11 +36,20 @@ def print_eval_report(results: dict, title: str = "Evaluation Results"):
 
         # Format floats to 4 decimal places, leave others as is
         if isinstance(value, float):
-            print(f"{display_name:<{width - 8}}: {value:>6.4f}")
+            report.append(f"{display_name:<{width - 8}}: {value:>6.4f}")
         else:
-            print(f"{display_name:<{width - 8}}: {value:>6}")
+            report.append(f"{display_name:<{width - 8}}: {value:>6}")
 
-    print(f"{'=' * width}\n")
+    report.append(f"{'=' * width}\n")
+
+    # Print to console
+    full_report = "\n".join(report)
+    print(full_report)
+
+    # Save to file if path is provided
+    if log_path:
+        with open(log_path, "a") as f:
+            f.write(full_report)
 
 
 def evaluate_segmentation_performance(
