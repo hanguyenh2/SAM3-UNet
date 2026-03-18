@@ -245,7 +245,7 @@ if __name__ == "__main__":
     # 2. Evaluate each gt file
     len_mask_name_list = len(mask_name_list)
     for i, mask_name in enumerate(mask_name_list):
-        print(f"[{i+1}/{len_mask_name_list}] {mask_name}")
+        title = f"[{i+1}/{len_mask_name_list}] {mask_name}"
         # 2.1. Read gt and pred path
         gt_path = os.path.join(mask_root, mask_name)
         pred_path = os.path.join(pred_root, mask_name[:-4] + ".png")
@@ -255,7 +255,7 @@ if __name__ == "__main__":
         # 2.3. Evaluate
         result = evaluate_segmentation_performance(pred_mask, gt_mask)
         # 2.4. Save result
-        # print_eval_report(result, title="Single Evaluation")
+        print_eval_report(result, title=title)
         results.append(result)
 
     # 3. Evaluate all results
