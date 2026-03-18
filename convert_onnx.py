@@ -6,7 +6,7 @@ import torch.onnx
 
 from SAM3UNet import SAM3UNet
 
-# For verification (install with pip install onnxruntime numpy)
+# For verification
 try:
     import numpy as np
     import onnxruntime as ort
@@ -18,29 +18,17 @@ except ImportError:
 
 
 def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
-    """
-    Converts a PyTorch .pth model to the ONNX format.
-
-    Args:
-        model (torch.nn.Module): The PyTorch model (loaded from .pth).
-        dummy_input (torch.Tensor): A dummy input tensor with the correct shape
-            for the model. This is used to trace the model's execution.
-        onnx_path (str): The path where the ONNX file should be saved (e.g., "model.onnx").
-        verbose (bool, optional): If True, prints detailed information during the
-            conversion process. Defaults to False.
-        dynamic_batch_size (bool, optional): If True, the exported ONNX model will
-            support variable batch sizes. Defaults to False.
-    """
-    model.eval()  # Set to evaluation mode for export (good practice)
+    model.eval()
     print("Model set to evaluation mode for ONNX export.")
 
     try:
+        # We use opset 17 as requested; it works now that complex types are removed
         torch.onnx.export(
             model,
             dummy_input,
             onnx_path,
             export_params=True,
-            opset_version=17,  # Opset 17+ is usually enough once complex types are removed
+            opset_version=17,
             do_constant_folding=True,
             input_names=["images"],
             output_names=["output"],
@@ -49,14 +37,13 @@ def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
     except Exception as e:
         print(f"Error exporting model to ONNX: {e}")
         return False
-
     return True
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--checkpoint", type=str, required=True, help="path to the checkpoint of sam2-unet"
+        "--checkpoint", type=str, required=True, help="path to the checkpoint of sam3-unet"
     )
     parser.add_argument(
         "--verify",
@@ -66,30 +53,42 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # 1. Load your PyTorch model from .pth
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    # 1. Initialize model
     model = SAM3UNet(img_size=672).to(device)
-    model.load_state_dict(torch.load(args.checkpoint, map_location=device), strict=True)  # nosec
 
-    # 2. Create a dummy input tensor with the correct shape
-    dummy_input = torch.randn(1, 3, 672, 672).to(device)  # Moved to device
+    # 2. Load and Transform State Dict
+    print(f"Loading checkpoint: {args.checkpoint}")
+    state_dict = torch.load(args.checkpoint, map_location=device)
 
-    # 3. Define the output path for the ONNX file
+    # Logic to fix the Complex -> Real mismatch for freqs_cis
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if "freqs_cis" in k:
+            # If the checkpoint has complex tensors, convert them to real view [..., 2]
+            if torch.is_complex(v):
+                new_state_dict[k] = torch.view_as_real(v)
+            else:
+                new_state_dict[k] = v
+        else:
+            new_state_dict[k] = v
+
+    model.load_state_dict(new_state_dict, strict=True)
+    print("State dict loaded successfully with RoPE transformation.")
+
+    # 3. Create dummy input
+    dummy_input = torch.randn(1, 3, 672, 672).to(device)
+
+    # 4. Define output path
     checkpoint_name = os.path.splitext(os.path.basename(args.checkpoint))[0]
     onnx_path = f"{checkpoint_name}.onnx"
-    print(f"Attempting to convert to ONNX: {onnx_path}")
 
-    # 4. Convert the model
-    success = convert_pth_to_onnx(
-        model,
-        dummy_input,
-        onnx_path,
-        verbose=False,  # dynamic_batch_size=args.dynamic_batch_size
-    )
+    # 5. Convert
+    success = convert_pth_to_onnx(model, dummy_input, onnx_path)
 
-    # 5. Verify the ONNX model (Optional but highly recommended)
+    # 6. Verification
     if success and args.verify and _has_onnxruntime:
         print("\n--- Verifying ONNX model output against PyTorch output ---")
         try:
@@ -115,14 +114,14 @@ if __name__ == "__main__":
 
             # Get ONNX model output
             ort_inputs = {ort_session.get_inputs()[0].name: dummy_input_np}
-            ort_outputs = ort_session.run(None, ort_inputs)  # None for all outputs
+            ort_outputs = ort_session.run(None, ort_inputs)
 
             # Compare outputs numerically
             for i, (torch_out_np, ort_out_np) in enumerate(zip(torch_outputs_np, ort_outputs)):
-                # Use allclose for floating-point comparison
-                np.testing.assert_allclose(torch_out_np, ort_out_np, rtol=1e-01, atol=1e-01)
+                # Note: We use a slightly higher tolerance for Transformer exports
+                np.testing.assert_allclose(torch_out_np, ort_out_np, rtol=1e-02, atol=1e-02)
                 print(
-                    f"Output {i} matched between PyTorch and ONNX (max diff: {np.max(np.abs(torch_out_np - ort_out_np)):.2e})"
+                    f"Output {i} matched (max diff: {np.max(np.abs(torch_out_np - ort_out_np)):.2e})"
                 )
             print("ONNX model verified successfully!")
 
