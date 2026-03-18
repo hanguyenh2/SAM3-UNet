@@ -17,8 +17,16 @@ except ImportError:
     print("Warning: onnxruntime and numpy not found. Skipping ONNX model verification.")
 
 
-def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
+def convert_pth_to_onnx(model, dummy_input, onnx_path):
     model.eval()
+
+    # FIX: Force the Tracer to use the "Math" path for Attention.
+    # This prevents the tracer from creating a "black box" fused kernel
+    # that causes the 0.74 mismatch at high resolutions.
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
+
     print("Model set to evaluation mode for ONNX export.")
 
     try:
@@ -45,12 +53,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint", type=str, required=True, help="path to the checkpoint of sam3-unet"
     )
-    parser.add_argument(
-        "--verify",
-        action="store_true",
-        default=True,
-        help="Verify the ONNX model output against PyTorch output.",
-    )
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,11 +69,7 @@ if __name__ == "__main__":
     new_state_dict = {}
     for k, v in state_dict.items():
         if "freqs_cis" in k:
-            # If the checkpoint has complex tensors, convert them to real view [..., 2]
-            if torch.is_complex(v):
-                new_state_dict[k] = torch.view_as_real(v)
-            else:
-                new_state_dict[k] = v
+            new_state_dict[k] = torch.view_as_real(v) if torch.is_complex(v) else v
         else:
             new_state_dict[k] = v
 
@@ -89,7 +87,7 @@ if __name__ == "__main__":
     success = convert_pth_to_onnx(model, dummy_input, onnx_path)
 
     # 6. Verification
-    if success and args.verify and _has_onnxruntime:
+    if success and _has_onnxruntime:
         print("\n--- Verifying ONNX model output against PyTorch output ---")
         try:
             # Move dummy_input to CPU and convert to NumPy for ONNX Runtime
@@ -127,5 +125,3 @@ if __name__ == "__main__":
 
         except Exception as e:
             print(f"Error during ONNX model verification: {e}")
-    elif args.verify and not _has_onnxruntime:
-        print("Skipping verification: onnxruntime and numpy are required but not installed.")

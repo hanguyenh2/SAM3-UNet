@@ -173,7 +173,7 @@ def window_unpartition(
     # 4. FIX: Remove the 'if' branch.
     # Slicing is traced as a dynamic operation.
     # If H == Hp, this slice effectively does nothing but keeps the graph valid.
-    x = x[:, : int(H), : int(W), :]
+    x = x.narrow(1, 0, H).narrow(2, 0, W)
 
     return x
 
@@ -243,7 +243,9 @@ def get_abs_pos(
     # We use math.sqrt here because the 'abs_pos' parameter count (196, 256, etc.)
     # is usually fixed in the checkpoint and won't change per-inference.
     xy_num = abs_pos.shape[1]
-    grid_size = torch.sqrt(torch.tensor(float(xy_num))).int()
+    # Since abs_pos is a Parameter, its shape is constant.
+    # We just need to avoid the 'TracerWarning' by using a standard integer.
+    grid_size = int(xy_num**0.5)
 
     # Reshape to 4D for spatial operations
     # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
