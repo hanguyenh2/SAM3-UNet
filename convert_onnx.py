@@ -35,7 +35,7 @@ def convert_pth_to_onnx(model, dummy_input, onnx_path, verbose=False):
     print("Model set to evaluation mode for ONNX export.")
 
     input_names = ["images"]
-    output_names = ["output", "output_1", "output_2"]  # Consider more descriptive names
+    output_names = ["output"]  # Consider more descriptive names
 
     try:
         torch.onnx.export(
