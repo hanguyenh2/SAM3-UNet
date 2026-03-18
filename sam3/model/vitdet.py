@@ -64,7 +64,6 @@ def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Ten
     ndim = x.ndim
     assert 0 <= 1 < ndim
     # freqs_cis now has shape [L, D, 2]
-    assert freqs_cis.shape[:2] == (x.shape[-3], x.shape[-2])
     shape = [d if i >= ndim - 3 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
@@ -99,7 +98,7 @@ def apply_rotary_enc(
 
     # FIX: Check tensor size instead of using 'if xk_ is None'
     # This ensures the ONNX graph contains the logic for both cases.
-    if xk.shape[-2] == 0:
+    if xk.numel() == 0:
         return xq_out.type_as(xq), xk
 
     # FIX: Handle frequency repetition for GQA/MQA without Python branching where possible
@@ -245,7 +244,7 @@ def get_abs_pos(
     xy_num = abs_pos.shape[1]
     # Since abs_pos is a Parameter, its shape is constant.
     # We just need to avoid the 'TracerWarning' by using a standard integer.
-    grid_size = int(xy_num**0.5)
+    grid_size = torch.sqrt(torch.tensor(xy_num, dtype=torch.float32)).to(torch.int32)
 
     # Reshape to 4D for spatial operations
     # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
