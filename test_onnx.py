@@ -28,7 +28,6 @@ parser.add_argument(
     default="../wall_seg_crop/data_test/masks/",
     help="path to the mask files for testing",
 )
-parser.add_argument("--size", default=960, type=int)
 parser.add_argument("--use_cpu", action="store_true", default=False, help="inference using CPU")
 args = parser.parse_args()
 
@@ -45,7 +44,7 @@ try:
 except Exception:
     print("ModuleNotFoundError: No module named 'torch'")
 
-test_loader = TestDataset(args.test_image_path, args.test_gt_path, args.size)
+test_loader = TestDataset(args.test_image_path, args.test_gt_path, 672)
 
 # 1. Create an ONNX Runtime session, specifying the providers
 # The 'providers' argument tells ONNX Runtime which hardware backend to use.
@@ -70,7 +69,7 @@ for i in range(test_loader.size):
 
     # 3. Run the model
     # The input 'image' (a numpy array) will be sent to the specified provider (GPU if CUDA)
-    res_padded, _, _ = model.run(None, {input_name: image})
+    res_padded = model.run(None, {input_name: image})[0]
 
     process_time = time.time() - time_start
     test_time.append(process_time)
@@ -80,7 +79,7 @@ for i in range(test_loader.size):
 
     # Post-processing: ONNX output 'res' is a numpy array
     pad_left, pad_top, pad_right, pad_bottom = padding
-    res = res_padded[:, :, pad_top : args.size - pad_bottom, pad_left : args.size - pad_right]
+    res = res_padded[:, :, pad_top : 672 - pad_bottom, pad_left : 672 - pad_right]
     res_sigmoid = 1 / (1 + np.exp(-res))
     res = np.squeeze(res_sigmoid)
     res = cv2.resize(res, (gt_w, gt_h), interpolation=cv2.INTER_LINEAR)
