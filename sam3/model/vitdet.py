@@ -9,7 +9,7 @@ Rope embedding code adopted from:
 2. https://github.com/naver-ai/rope-vit
 3. https://github.com/lucidrains/rotary-embedding-torch
 """
-
+import math
 from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
@@ -60,11 +60,20 @@ def compute_axial_cis(
     return torch.cat([freqs_cis_x, freqs_cis_y], dim=-2)  # Concatenate on the frequency dim
 
 
-def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
+    """
+    Reshape freqs_cis to be compatible with x for broadcasting.
+    x shape: [B, nHead, L, D//2, 2]
+    freqs_cis shape: [L, D//2, 2]
+    """
     ndim = x.ndim
-    assert 0 <= 1 < ndim
-    # Hardcode the shape expansion to avoid inferred -1 dimensions
+    assert ndim >= 2
+
+    # Calculate the target shape based on the ACTUAL current tensor 'x'
+    # This prevents the 'size 36864' mismatch at 1008px
     shape = [d if i == ndim - 2 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
+
+    # Use view to apply the dynamic shape
     return freqs_cis.view(*shape)
 
 
@@ -233,10 +242,10 @@ def get_abs_pos(
         cls_pos = abs_pos[:, :1]
         abs_pos = abs_pos[:, 1:]
 
-    # abs_pos.shape[1] is a constant for the model (e.g., 197).
-    # Use standard math outside the tensor flow for the grid size,
-    # as it doesn't change based on image resolution.
-    grid_size = int(abs_pos.shape[1] ** 0.5)
+    # Instead of: grid_size = int(abs_pos.shape[1] ** 0.5)
+    # Use the length of the parameter directly if it's a fixed size:
+    L = abs_pos.shape[1]
+    grid_size = int(math.sqrt(L))  # math.sqrt on a static int is safe from tracing
 
     # Reshape to 4D for spatial operations
     # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
