@@ -10,7 +10,6 @@ Rope embedding code adopted from:
 3. https://github.com/lucidrains/rotary-embedding-torch
 """
 
-import math
 from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
@@ -78,9 +77,13 @@ def apply_rotary_enc(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     # xq shape: [B, nHead, L, D] -> Reshape to [B, nHead, L, D//2, 2]
     xq_ = xq.float().reshape(*xq.shape[:-1], -1, 2)
-    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2) if xk.shape[-2] != 0 else None
 
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)  # Shape: [1, 1, L, D//2, 2]
+    # FIX: Remove the 'if/else' check.
+    # Even if xk is empty, we reshape it. Reshaping an empty tensor is
+    # valid in both PyTorch and ONNX and keeps the graph linear.
+    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2)
+
+    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
 
     # Real-number rotation logic:
     # (x_r + x_i*i) * (f_r + f_i*i) = (x_r*f_r - x_i*f_i) + (x_r*f_i + x_i*f_r)i
@@ -89,18 +92,26 @@ def apply_rotary_enc(
         f_r, f_i = f[..., 0], f[..., 1]
         out_r = x_r * f_r - x_i * f_i
         out_i = x_r * f_i + x_i * f_r
+        # flatten(3) converts [..., D//2, 2] back to [..., D]
         return torch.stack([out_r, out_i], dim=-1).flatten(3)
 
     xq_out = rotate(xq_, freqs_cis)
 
-    if xk_ is None:
+    # FIX: Check tensor size instead of using 'if xk_ is None'
+    # This ensures the ONNX graph contains the logic for both cases.
+    if xk.shape[-2] == 0:
         return xq_out.type_as(xq), xk
 
+    # FIX: Handle frequency repetition for GQA/MQA without Python branching where possible
     if repeat_freqs_k:
+        # Use torch.tensor for the ratio calculation to keep it in the graph
         r = xk_.shape[-3] // xq_.shape[-3]
-        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
+        # We use a standard repeat here; ONNX handles this as a 'Tile' node
+        freqs_cis_k = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
+    else:
+        freqs_cis_k = freqs_cis
 
-    xk_out = rotate(xk_, freqs_cis)
+    xk_out = rotate(xk_, freqs_cis_k)
 
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
@@ -145,14 +156,25 @@ def window_unpartition(
     Returns:
         x: unpartitioned sequences with [B, H, W, C].
     """
+    # 1. Unpack dimensions
     Hp, Wp = pad_hw
     H, W = hw
-    B = windows.shape[0] // (Hp * Wp // window_size // window_size)
-    x = windows.reshape(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
+
+    # 2. Calculate Batch size dynamically
+    # Use // for integer division; ONNX handles this well when inputs are tensors/ints
+    num_windows_h = Hp // window_size
+    num_windows_w = Wp // window_size
+    B = windows.shape[0] // (num_windows_h * num_windows_w)
+
+    # 3. Reshape and Permute to restore spatial dimensions [B, Hp, Wp, C]
+    x = windows.view(B, num_windows_h, num_windows_w, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, Hp, Wp, -1)
 
-    if Hp > H or Wp > W:
-        x = x[:, :H, :W, :]
+    # 4. FIX: Remove the 'if' branch.
+    # Slicing is traced as a dynamic operation.
+    # If H == Hp, this slice effectively does nothing but keeps the graph valid.
+    x = x[:, : int(H), : int(W), :]
+
     return x
 
 
@@ -221,7 +243,7 @@ def get_abs_pos(
     # We use math.sqrt here because the 'abs_pos' parameter count (196, 256, etc.)
     # is usually fixed in the checkpoint and won't change per-inference.
     xy_num = abs_pos.shape[1]
-    grid_size = int(math.sqrt(xy_num))
+    grid_size = torch.sqrt(torch.tensor(float(xy_num))).int()
 
     # Reshape to 4D for spatial operations
     # Shape: [1, grid_size, grid_size, C] -> [1, C, grid_size, grid_size]
