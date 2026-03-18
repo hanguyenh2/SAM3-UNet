@@ -36,10 +36,10 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # 3. init test_loader
-    test_loader = TestDataset(args.test_image_path, args.test_gt_path, 1008)
+    test_loader = TestDataset(args.test_image_path, args.test_gt_path, 672)
 
     # 4. init model
-    model = SAM3UNet(img_size=1008).to(device)
+    model = SAM3UNet(img_size=672).to(device)
     model.load_state_dict(torch.load(args.checkpoint), strict=True)
     model.eval()
     model.cuda()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
             # Remove padding
             pad_left, pad_top, pad_right, pad_bottom = padding
-            res = res_padded[:, :, pad_top : 1008 - pad_bottom, pad_left : 1008 - pad_right]
+            res = res_padded[:, :, pad_top : 672 - pad_bottom, pad_left : 672 - pad_right]
 
             # Output conversion
             res = F.interpolate(res, size=gt.shape, mode="bilinear", align_corners=False)

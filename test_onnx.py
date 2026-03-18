@@ -44,7 +44,7 @@ try:
 except Exception:
     print("ModuleNotFoundError: No module named 'torch'")
 
-test_loader = TestDataset(args.test_image_path, args.test_gt_path, 1008)
+test_loader = TestDataset(args.test_image_path, args.test_gt_path, 672)
 
 # 1. Create an ONNX Runtime session, specifying the providers
 # The 'providers' argument tells ONNX Runtime which hardware backend to use.
@@ -79,7 +79,7 @@ for i in range(test_loader.size):
 
     # Post-processing: ONNX output 'res' is a numpy array
     pad_left, pad_top, pad_right, pad_bottom = padding
-    res = res_padded[:, :, pad_top : 1008 - pad_bottom, pad_left : 1008 - pad_right]
+    res = res_padded[:, :, pad_top : 672 - pad_bottom, pad_left : 672 - pad_right]
     res_sigmoid = 1 / (1 + np.exp(-res))
     res = np.squeeze(res_sigmoid)
     res = cv2.resize(res, (gt_w, gt_h), interpolation=cv2.INTER_LINEAR)

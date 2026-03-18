@@ -109,7 +109,7 @@ def _create_vit_backbone(img_size):
     return ViT(
         #   img_size=1008,
         img_size=img_size,
-        pretrain_img_size=1008,
+        pretrain_img_size=672,
         patch_size=14,
         embed_dim=1024,
         depth=32,
@@ -137,7 +137,7 @@ def _create_vit_backbone(img_size):
 
 
 class SAM3UNet(nn.Module):
-    def __init__(self, checkpoint_path=None, img_size=1008) -> None:
+    def __init__(self, checkpoint_path=None, img_size=672) -> None:
         super(SAM3UNet, self).__init__()
         self.sam3_vit = _create_vit_backbone(img_size)
         if checkpoint_path:
@@ -220,6 +220,6 @@ class SAM3UNet(nn.Module):
 if __name__ == "__main__":
     model = SAM3UNet().cuda().eval()
     with torch.no_grad():
-        x = torch.randn(1, 3, 1008, 1008).cuda()
+        x = torch.randn(1, 3, 672, 672).cuda()
         out = model(x)
         print(out.shape)

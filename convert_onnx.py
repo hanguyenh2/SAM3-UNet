@@ -57,7 +57,7 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # 1. Initialize model
-    model = SAM3UNet(img_size=1008).to(device)
+    model = SAM3UNet(img_size=672).to(device)
 
     # 2. Load and Transform State Dict
     print(f"Loading checkpoint: {args.checkpoint}")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     print("State dict loaded successfully with RoPE transformation.")
 
     # 3. Create dummy input
-    dummy_input = torch.randn(1, 3, 1008, 1008).to(device)
+    dummy_input = torch.randn(1, 3, 672, 672).to(device)
 
     # 4. Define output path
     checkpoint_name = os.path.splitext(os.path.basename(args.checkpoint))[0]

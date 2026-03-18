@@ -73,7 +73,7 @@ def _create_vit_backbone(compile_mode=None):
     """Create ViT backbone for visual feature extraction."""
     return ViT(
         img_size=1008,
-        pretrain_img_size=1008,
+        pretrain_img_size=672,
         patch_size=14,
         embed_dim=1024,
         depth=32,

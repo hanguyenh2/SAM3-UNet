@@ -31,14 +31,14 @@ def structure_loss(pred, mask):
 
 def main(args):
     # 1. Load train data
-    dataset = FullDataset(args.train_image_path, args.train_mask_path, 1008, mode="train")
+    dataset = FullDataset(args.train_image_path, args.train_mask_path, 672, mode="train")
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     # 2. Load test data
-    test_loader = TestDataset(args.test_image_path, args.test_gt_path, 1008)
+    test_loader = TestDataset(args.test_image_path, args.test_gt_path, 672)
     # 3. Set device
     device = torch.device("cuda")
     # 4. Load model to device
-    model = SAM3UNet(args.sam3_path, 1008)
+    model = SAM3UNet(args.sam3_path, 672)
     model.to(device)
     # 5. Set optimizer
     optim = opt.AdamW(
@@ -94,7 +94,7 @@ def main(args):
                 res_padded = model(image)
                 # 7.2.3. Remove padding
                 pad_left, pad_top, pad_right, pad_bottom = padding
-                res = res_padded[:, :, pad_top : 1008 - pad_bottom, pad_left : 1008 - pad_right]
+                res = res_padded[:, :, pad_top : 672 - pad_bottom, pad_left : 672 - pad_right]
                 # 7.2.4. Output conversion
                 res = F.interpolate(res, size=gt.shape, mode="bilinear", align_corners=False)
                 res = res.sigmoid().data.cpu()
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--epoch", type=int, default=500, help="training epochs")
     parser.add_argument("--lr", type=float, default=0.0002, help="learning rate")
-    parser.add_argument("--batch_size", default=18, type=int)
+    parser.add_argument("--batch_size", default=36, type=int)
     parser.add_argument("--weight_decay", default=5e-4, type=float)
     parser.add_argument("--save_interval", default=10, type=int)
     parser.add_argument("--base_mean_iou", default=0.8, type=float)
