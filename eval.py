@@ -27,7 +27,7 @@ def print_eval_report(results: dict, title: str = "Evaluation Results", log_path
     width = max(len(title) + 2, 25)
     report = []
     report.append(f"\n{'=' * width}")
-    report.append(f"{title.upper():^{width}}")
+    report.append(f"{title:^{width}}")
     report.append(f"{'-' * width}")
 
     for metric, value in results.items():
@@ -239,15 +239,16 @@ if __name__ == "__main__":
 
     # Init for next steps
     pred_root = args.pred_path
-    mask_root = args.gt_path
-    mask_name_list = sorted(os.listdir(mask_root))
+    gt_root = args.gt_path
+    gt_list = sorted(os.listdir(gt_root))
+    log_path = os.path.join(args.pred_path, "log.txt")
     results = []
     # 2. Evaluate each gt file
-    len_mask_name_list = len(mask_name_list)
-    for i, mask_name in enumerate(mask_name_list):
-        title = f"[{i+1}/{len_mask_name_list}] {mask_name}"
+    len_gt_list = len(gt_list)
+    for i, mask_name in enumerate(gt_list):
+        title = f"[{i+1}/{len_gt_list}] {mask_name}"
         # 2.1. Read gt and pred path
-        gt_path = os.path.join(mask_root, mask_name)
+        gt_path = os.path.join(gt_root, mask_name)
         pred_path = os.path.join(pred_root, mask_name[:-4] + ".png")
         # 2.2. Read gt and pred images
         gt_mask = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
@@ -255,9 +256,9 @@ if __name__ == "__main__":
         # 2.3. Evaluate
         result = evaluate_segmentation_performance(pred_mask, gt_mask)
         # 2.4. Save result
-        print_eval_report(result, title=title)
+        print_eval_report(result, title=title, log_path=log_path)
         results.append(result)
 
     # 3. Evaluate all results
     final_result = evaluate_dataset(results)
-    print_eval_report(final_result, title="Segmentation Evaluation")
+    print_eval_report(final_result, title="Segmentation Evaluation", log_path=log_path)
