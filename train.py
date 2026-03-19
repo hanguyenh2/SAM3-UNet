@@ -19,7 +19,7 @@ from SAM3UNet import SAM3UNet
 
 
 def structure_loss(pred, mask):
-    weit = 1 + 10 * torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    weit = 1 + 5 * torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
     wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce="none")
     wbce = (weit * wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
     pred = torch.sigmoid(pred)
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--epoch", type=int, default=500, help="training epochs")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    parser.add_argument("--batch_size", default=12, type=int)
+    parser.add_argument("--batch_size", default=10, type=int)
     parser.add_argument("--weight_decay", default=5e-4, type=float)
     parser.add_argument("--save_interval", default=10, type=int)
     parser.add_argument("--base_mean_iou", default=0.8, type=float)
