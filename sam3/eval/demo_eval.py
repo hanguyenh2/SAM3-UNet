@@ -11,11 +11,9 @@ from typing import Optional
 import numpy as np
 import pycocotools.mask as maskUtils
 from pycocotools.cocoeval import COCOeval
-
 from sam3.eval.coco_eval import CocoEvaluator
 from sam3.train.masks_ops import compute_F_measure
 from sam3.train.utils.distributed import is_main_process
-
 from scipy.optimize import linear_sum_assignment
 
 
@@ -282,10 +280,7 @@ class DemoEval(COCOeval):
         assert np.all(recall <= 1)
         F1 = 2 * precision * recall / (precision + recall + 1e-4)
         positive_micro_F1 = (
-            2
-            * positive_micro_precision
-            * recall
-            / (positive_micro_precision + recall + 1e-4)
+            2 * positive_micro_precision * recall / (positive_micro_precision + recall + 1e-4)
         )
 
         IL_rec = IL_TPs / (IL_TPs + IL_FNs + 1e-6)
@@ -334,9 +329,7 @@ class DemoEval(COCOeval):
             "J&F": total_JnF,
         }
         self.eval["CGF1"] = self.eval["positive_macro_F1"] * self.eval["IL_MCC"]
-        self.eval["CGF1_w0dt"] = (
-            self.eval["positive_w0dt_macro_F1"] * self.eval["IL_MCC"]
-        )
+        self.eval["CGF1_w0dt"] = self.eval["positive_w0dt_macro_F1"] * self.eval["IL_MCC"]
         self.eval["CGF1_micro"] = self.eval["positive_micro_F1"] * self.eval["IL_MCC"]
 
     def summarize(self):
@@ -352,9 +345,7 @@ class DemoEval(COCOeval):
             iStr = " {:<18} @[ IoU={:<9}] = {:0.3f}"
             titleStr = "Average " + metric
             iouStr = (
-                "{:0.2f}:{:0.2f}".format(p.iouThrs[0], p.iouThrs[-1])
-                if iouThr is None
-                else "{:0.2f}".format(iouThr)
+                f"{p.iouThrs[0]:0.2f}:{p.iouThrs[-1]:0.2f}" if iouThr is None else f"{iouThr:0.2f}"
             )
 
             s = self.eval[metric]
@@ -572,7 +563,7 @@ class DemoEvaluator(CocoEvaluator):
         # if self.rarity_buckets is None:
         self.accumulate(self.eval_img_ids)
         for iou_type, coco_eval in self.coco_evals[0].items():
-            print("Demo metric, IoU type={}".format(iou_type))
+            print(f"Demo metric, IoU type={iou_type}")
             coco_eval.summarize()
 
         if "bbox" in self.coco_evals[0]:

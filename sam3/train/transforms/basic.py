@@ -12,7 +12,6 @@ import PIL
 import torch
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
-
 from sam3.model.box_ops import box_xyxy_to_cxcywh
 from sam3.model.data_misc import interpolate
 
@@ -77,16 +76,16 @@ def hflip(image, target):
     target = target.copy()
     if "boxes" in target:
         boxes = target["boxes"]
-        boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor(
-            [-1, 1, -1, 1]
-        ) + torch.as_tensor([w, 0, w, 0])
+        boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor([-1, 1, -1, 1]) + torch.as_tensor(
+            [w, 0, w, 0]
+        )
         target["boxes"] = boxes
 
     if "input_boxes" in target:
         boxes = target["input_boxes"]
-        boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor(
-            [-1, 1, -1, 1]
-        ) + torch.as_tensor([w, 0, w, 0])
+        boxes = boxes[:, [2, 1, 0, 3]] * torch.as_tensor([-1, 1, -1, 1]) + torch.as_tensor(
+            [w, 0, w, 0]
+        )
         target["input_boxes"] = boxes
 
     if "masks" in target:
@@ -142,9 +141,7 @@ def resize(image, target, size, max_size=None, square=False):
     if target is None:
         return rescaled_image, None
 
-    ratios = tuple(
-        float(s) / float(s_orig) for s, s_orig in zip(rescaled_image.size, image.size)
-    )
+    ratios = tuple(float(s) / float(s_orig) for s, s_orig in zip(rescaled_image.size, image.size))
     ratio_width, ratio_height = ratios
 
     target = target.copy()
@@ -171,8 +168,7 @@ def resize(image, target, size, max_size=None, square=False):
 
     if "masks" in target:
         target["masks"] = (
-            interpolate(target["masks"][:, None].float(), size, mode="nearest")[:, 0]
-            > 0.5
+            interpolate(target["masks"][:, None].float(), size, mode="nearest")[:, 0] > 0.5
         )
 
     return rescaled_image, target
@@ -264,16 +260,12 @@ class RandomSizeCrop:
                 # i = random.uniform(max(0, minX - w + 1), max(maxX, max(0, minX - w + 1)))
                 i = random.uniform(max(0, minX - w), max(maxX, max(0, minX - w)))
             else:
-                i = random.uniform(
-                    max(0, minX - w + 1), max(maxX - 1, max(0, minX - w + 1))
-                )
+                i = random.uniform(max(0, minX - w + 1), max(maxX - 1, max(0, minX - w + 1)))
             if minY > maxY:
                 # j = random.uniform(max(0, minY - h + 1), max(maxY, max(0, minY - h + 1)))
                 j = random.uniform(max(0, minY - h), max(maxY, max(0, minY - h)))
             else:
-                j = random.uniform(
-                    max(0, minY - h + 1), max(maxY - 1, max(0, minY - h + 1))
-                )
+                j = random.uniform(max(0, minY - h + 1), max(maxY - 1, max(0, minY - h + 1)))
             result_img, result_target = crop(img, target, [j, i, h, w])
             assert (
                 len(result_target["boxes"]) == init_boxes
@@ -438,7 +430,7 @@ class Compose:
         format_string = self.__class__.__name__ + "("
         for t in self.transforms:
             format_string += "\n"
-            format_string += "    {0}".format(t)
+            format_string += f"    {t}"
         format_string += "\n)"
         return format_string
 

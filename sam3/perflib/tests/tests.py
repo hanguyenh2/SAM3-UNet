@@ -3,7 +3,6 @@
 import os
 
 import numpy as np
-import pytest
 import torch
 from PIL import Image
 from sam3.perflib.masks_ops import masks_to_boxes
@@ -16,15 +15,11 @@ class TestMasksToBoxes:
             assert out.dtype == torch.float
             print("out: ", out)
             print("expected: ", expected)
-            torch.testing.assert_close(
-                out, expected, rtol=0.0, check_dtype=True, atol=atol
-            )
+            torch.testing.assert_close(out, expected, rtol=0.0, check_dtype=True, atol=atol)
 
         # Check for int type boxes.
         def _get_image():
-            assets_directory = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "assets"
-            )
+            assets_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
             mask_path = os.path.join(assets_directory, "masks.tiff")
             image = Image.open(mask_path)
             return image
@@ -52,8 +47,6 @@ class TestMasksToBoxes:
 
         image = _get_image()
         for dtype in [torch.float16, torch.float32, torch.float64]:
-            masks = torch.zeros(
-                (image.n_frames, image.height, image.width), dtype=dtype
-            )
+            masks = torch.zeros((image.n_frames, image.height, image.width), dtype=dtype)
             masks = _create_masks(image, masks)
             masks_box_check(masks, expected)

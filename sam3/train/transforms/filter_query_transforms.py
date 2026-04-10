@@ -2,12 +2,10 @@
 
 import logging
 import random
-
 from collections import defaultdict
 from typing import List, Optional, Union
 
 import torch
-
 from sam3.train.data.sam3_image_dataset import Datapoint, FindQuery, Object
 
 
@@ -33,9 +31,7 @@ class FilterQueryWithText(FilterDataPointQueries):
     Filter all datapoints which have query text in a specified list of exluded terms
     """
 
-    def __init__(
-        self, exclude_find_keys: List[str] = None, exclude_get_keys: List[str] = None
-    ):
+    def __init__(self, exclude_find_keys: List[str] = None, exclude_get_keys: List[str] = None):
         self.find_filter_keys = exclude_find_keys if exclude_find_keys else []
         self.get_filter_keys = exclude_get_keys if exclude_get_keys else []
 
@@ -51,9 +47,7 @@ class FilterQueryWithText(FilterDataPointQueries):
 
 
 class KeepMaxNumFindQueries(FilterDataPointQueries):
-    def __init__(
-        self, max_num_find_queries: int, retain_positive_queries: bool = False
-    ):
+    def __init__(self, max_num_find_queries: int, retain_positive_queries: bool = False):
         self.max_num_find_queries = max_num_find_queries
         self.retain_positive_queries = retain_positive_queries
 
@@ -67,9 +61,7 @@ class KeepMaxNumFindQueries(FilterDataPointQueries):
         if not self.retain_positive_queries:
             all_find_query_ids = list(range(num_find_queries))
             num_queries_to_filter = max(0, num_find_queries - self.max_num_find_queries)
-            query_ids_to_filter = random.sample(
-                all_find_query_ids, k=num_queries_to_filter
-            )
+            query_ids_to_filter = random.sample(all_find_query_ids, k=num_queries_to_filter)
         else:
             # keep up to max_num_find_queries postive find queries and fill
             # the remaining slots (if any) with negative find queries
@@ -85,17 +77,13 @@ class KeepMaxNumFindQueries(FilterDataPointQueries):
                 # we have more positive find queries than `max_num_find_queries`,
                 # so we subsample postive find queries and remove all negative find queries
                 num_queries_to_filter = len(pos_find_ids) - self.max_num_find_queries
-                query_ids_to_filter = random.sample(
-                    pos_find_ids, k=num_queries_to_filter
-                )
+                query_ids_to_filter = random.sample(pos_find_ids, k=num_queries_to_filter)
                 query_ids_to_filter.extend(neg_find_ids)
             else:
                 # we have fewer positive find queries than `max_num_find_queries`
                 # so we need to fill the remaining with negative find queries
                 num_queries_to_filter = num_find_queries - self.max_num_find_queries
-                query_ids_to_filter = random.sample(
-                    neg_find_ids, k=num_queries_to_filter
-                )
+                query_ids_to_filter = random.sample(neg_find_ids, k=num_queries_to_filter)
 
         assert len(query_ids_to_filter) == num_find_queries - self.max_num_find_queries
         self.find_ids_to_filter = set(query_ids_to_filter)
@@ -133,17 +121,11 @@ class KeepMaxNumFindQueriesVideo(FilterDataPointQueries):
         num_frames = len(findQueries_to_imageIds)
         findQueries_0 = findQueries_to_imageIds[0]
         num_find_queries_0 = len(findQueries_0)
-        max_num_find_queries_per_frame = (
-            self.video_mosaic_max_num_find_queries_per_frame
-        )
+        max_num_find_queries_per_frame = self.video_mosaic_max_num_find_queries_per_frame
         if not self.retain_positive_queries:
             find_query_ids_0 = list(range(num_find_queries_0))
-            num_queries_to_filter = max(
-                0, num_find_queries_0 - max_num_find_queries_per_frame
-            )
-            query_ids_to_filter_0 = random.sample(
-                find_query_ids_0, k=num_queries_to_filter
-            )
+            num_queries_to_filter = max(0, num_find_queries_0 - max_num_find_queries_per_frame)
+            query_ids_to_filter_0 = random.sample(find_query_ids_0, k=num_queries_to_filter)
         else:
             # keep up to max_num_find_queries postive find queries and fill
             # the remaining slots (if any) with negative find queries
@@ -159,35 +141,24 @@ class KeepMaxNumFindQueriesVideo(FilterDataPointQueries):
             if len(pos_find_ids_0) >= max_num_find_queries_per_frame:
                 # we have more positive find queries than `max_num_find_queries`,
                 # so we subsample postive find queries and remove all negative find queries
-                num_queries_to_filter = (
-                    len(pos_find_ids_0) - max_num_find_queries_per_frame
-                )
-                query_ids_to_filter_0 = random.sample(
-                    pos_find_ids_0, k=num_queries_to_filter
-                )
+                num_queries_to_filter = len(pos_find_ids_0) - max_num_find_queries_per_frame
+                query_ids_to_filter_0 = random.sample(pos_find_ids_0, k=num_queries_to_filter)
                 query_ids_to_filter_0.extend(neg_find_ids_0)
             else:
                 # we have fewer positive find queries than `max_num_find_queries`
                 # so we need to fill the remaining with negative find queries
-                num_queries_to_filter = (
-                    num_find_queries_0 - max_num_find_queries_per_frame
-                )
-                query_ids_to_filter_0 = random.sample(
-                    neg_find_ids_0, k=num_queries_to_filter
-                )
+                num_queries_to_filter = num_find_queries_0 - max_num_find_queries_per_frame
+                query_ids_to_filter_0 = random.sample(neg_find_ids_0, k=num_queries_to_filter)
 
         # get based on frame 0 all find queries from all the frames with the same indices as in frame 0
         query_ids_to_filter = []
         for i in range(num_frames):
             findQueries_i = findQueries_to_imageIds[i]
-            query_ids_to_filter.extend(
-                [findQueries_i[j] for j in query_ids_to_filter_0]
-            )
+            query_ids_to_filter.extend([findQueries_i[j] for j in query_ids_to_filter_0])
 
         assert (
             len(query_ids_to_filter)
-            == num_find_queries
-            - self.video_mosaic_max_num_find_queries_per_frame * num_frames
+            == num_find_queries - self.video_mosaic_max_num_find_queries_per_frame * num_frames
         )
         self.find_ids_to_filter = set(query_ids_to_filter)
 
@@ -231,9 +202,7 @@ class FilterZeroBoxQueries(FilterDataPointQueries):
         # Assume only one image per datapoint
         image_objects = datapoint.images[0].objects
         exclude_objects = {
-            obj_id
-            for obj_id, obj in enumerate(image_objects)
-            if self._is_zero_area_object(obj)
+            obj_id for obj_id, obj in enumerate(image_objects) if self._is_zero_area_object(obj)
         }
 
         # If a query predicts an object with zero area, drop the whole find query
@@ -310,9 +279,7 @@ class FilterNonExhaustiveFindQueries(FilterDataPointQueries):
                 if f_q.is_pixel_exhaustive is not None and not f_q.is_pixel_exhaustive:
                     del_find_ids.append(i)
             else:
-                raise RuntimeError(
-                    f"Unknown exhaustivity type {self.exhaustivity_type}"
-                )
+                raise RuntimeError(f"Unknown exhaustivity type {self.exhaustivity_type}")
 
         self.find_ids_to_filter = set(del_find_ids)
 
@@ -335,9 +302,7 @@ class FilterInvalidGeometricQueries(FilterDataPointQueries):
 
 
 class FlexibleFilterFindGetQueries:
-    def __init__(
-        self, query_filter: FilterDataPointQueries, enabled: bool = True
-    ) -> None:
+    def __init__(self, query_filter: FilterDataPointQueries, enabled: bool = True) -> None:
         self.query_filter = query_filter
         self.enabled = enabled
 
@@ -392,9 +357,7 @@ class FlexibleFilterFindGetQueries:
             raise ValueError
 
         # The deletion may have removed intermediate steps, so we need to remap to make them contiguous again
-        all_stages = sorted(
-            list(set(q.query_processing_order for q in datapoint.find_queries))
-        )
+        all_stages = sorted(list({q.query_processing_order for q in datapoint.find_queries}))
         stage_map = {qpo: i for i, qpo in enumerate(all_stages)}
         for i in range(len(datapoint.find_queries)):
             qpo = datapoint.find_queries[i].query_processing_order
@@ -402,15 +365,13 @@ class FlexibleFilterFindGetQueries:
 
         # Final step, clear up objects that are not used anymore
         for img_id in range(len(datapoint.images)):
-            all_objects_ids = set(
+            all_objects_ids = {
                 i
                 for find in datapoint.find_queries
                 for i in find.object_ids_output
                 if find.image_id == img_id
-            )
-            unused_ids = (
-                set(range(len(datapoint.images[img_id].objects))) - all_objects_ids
-            )
+            }
+            unused_ids = set(range(len(datapoint.images[img_id].objects))) - all_objects_ids
             for tgt_img_id, tgt_obj_id in self.query_filter.obj_ids_to_filter:
                 if tgt_img_id == img_id:
                     unused_ids.add(tgt_obj_id)

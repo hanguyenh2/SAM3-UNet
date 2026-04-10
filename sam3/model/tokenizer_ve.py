@@ -20,13 +20,12 @@ import regex as re
 import torch
 from iopath.common.file_io import g_pathmgr
 
-
 # https://stackoverflow.com/q/62691279
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 DEFAULT_CONTEXT_LENGTH = 77
 
 
-@lru_cache()
+@lru_cache
 def bytes_to_unicode():
     """
     Returns list of utf-8 byte and a corresponding list of unicode strings.
@@ -125,7 +124,7 @@ def canonicalize_text(text, *, keep_punctuation_exact_string=None):
     return text.strip()
 
 
-class SimpleTokenizer(object):
+class SimpleTokenizer:
     def __init__(
         self,
         bpe_path: Union[str, os.PathLike],
@@ -208,9 +207,7 @@ class SimpleTokenizer(object):
         text = self.clean_fn(text)
         for token in re.findall(self.pat, text):
             token = "".join(self.byte_encoder[b] for b in token.encode("utf-8"))
-            bpe_tokens.extend(
-                self.encoder[bpe_token] for bpe_token in self.bpe(token).split(" ")
-            )
+            bpe_tokens.extend(self.encoder[bpe_token] for bpe_token in self.bpe(token).split(" "))
         return bpe_tokens
 
     def decode(self, tokens):
@@ -241,8 +238,7 @@ class SimpleTokenizer(object):
         context_length = context_length or self.context_length
         assert context_length, "Please set a valid context length"
         all_tokens = [
-            [self.sot_token_id] + self.encode(text) + [self.eot_token_id]
-            for text in texts
+            [self.sot_token_id] + self.encode(text) + [self.eot_token_id] for text in texts
         ]
         result = torch.zeros(len(all_tokens), context_length, dtype=torch.long)
         for i, tokens in enumerate(all_tokens):

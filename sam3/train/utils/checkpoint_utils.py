@@ -106,9 +106,7 @@ def assert_skipped_parameters_are_frozen(model: nn.Module, patterns: List[str]):
         patterns=patterns, state_dict=model.state_dict()
     )
     non_frozen_keys = {
-        n
-        for n, p in model.named_parameters()
-        if n in frozen_state_dict and p.requires_grad
+        n for n, p in model.named_parameters() if n in frozen_state_dict and p.requires_grad
     }
     if non_frozen_keys:
         raise ValueError(
@@ -117,9 +115,7 @@ def assert_skipped_parameters_are_frozen(model: nn.Module, patterns: List[str]):
 
 
 @contextlib.contextmanager
-def with_check_parameter_frozen(
-    model: nn.Module, patterns: List[str], disabled: bool = True
-):
+def with_check_parameter_frozen(model: nn.Module, patterns: List[str], disabled: bool = True):
     """
     Context manager that inspects a model surrounding a piece of code
     and verifies if the model has been updated by this piece of code
@@ -150,7 +146,7 @@ def with_check_parameter_frozen(
 
     if not np.allclose(summary_before, summary_after, atol=1e-6):
         raise ValueError(
-            f"""
+            """
             The `model_weight_initializer` has initialized parameters frozen with `skip_saving_parameters`.
             You can resolve this error by either initializing those parameters from within the model definition
             or using the flag `trainer.checkpoint.initialize_after_preemption` to True.
@@ -177,9 +173,7 @@ class CkptExcludeKernel:
         """
         if len(self.key_pattern) == 0:
             return state_dict
-        exclude_keys = unix_pattern_to_parameter_names(
-            self.key_pattern, state_dict.keys()
-        )
+        exclude_keys = unix_pattern_to_parameter_names(self.key_pattern, state_dict.keys())
         return {k: v for k, v in state_dict.items() if k not in exclude_keys}
 
 
@@ -230,12 +224,9 @@ def get_state_dict(checkpoint, ckpt_state_dict_keys):
         if (isinstance(pre_train_dict, Mapping) and key not in pre_train_dict) or (
             isinstance(pre_train_dict, Sequence) and key >= len(pre_train_dict)
         ):
-            key_str = (
-                '["' + '"]["'.join(list(map(ckpt_state_dict_keys[:i], str))) + '"]'
-            )
+            key_str = '["' + '"]["'.join(list(map(ckpt_state_dict_keys[:i], str))) + '"]'
             raise KeyError(
-                f"'{key}' not found in checkpoint{key_str} "
-                f"with keys: {pre_train_dict.keys()}"
+                f"'{key}' not found in checkpoint{key_str} " f"with keys: {pre_train_dict.keys()}"
             )
         pre_train_dict = pre_train_dict[key]
     return pre_train_dict
@@ -263,9 +254,7 @@ def load_checkpoint_and_apply_kernels(
 
     Returns: Model with the matchin pre-trained weights loaded.
     """
-    assert g_pathmgr.exists(checkpoint_path), "Checkpoint '{}' not found".format(
-        checkpoint_path
-    )
+    assert g_pathmgr.exists(checkpoint_path), f"Checkpoint '{checkpoint_path}' not found"
 
     # Load the checkpoint on CPU to avoid GPU mem spike.
     with g_pathmgr.open(checkpoint_path, "rb") as f:
@@ -299,18 +288,14 @@ def check_load_state_dict_errors(
     ignore_unexpected_keys: List[str] = None,
 ):
     if ignore_missing_keys is not None and len(ignore_missing_keys) > 0:
-        ignored_keys = unix_pattern_to_parameter_names(
-            ignore_missing_keys, missing_keys
-        )
+        ignored_keys = unix_pattern_to_parameter_names(ignore_missing_keys, missing_keys)
         missing_keys = [key for key in missing_keys if key not in ignored_keys]
 
     if ignore_unexpected_keys is not None and len(ignore_unexpected_keys) > 0:
         ignored_unexpected_keys = unix_pattern_to_parameter_names(
             ignore_unexpected_keys, unexpected_keys
         )
-        unexpected_keys = [
-            key for key in unexpected_keys if key not in ignored_unexpected_keys
-        ]
+        unexpected_keys = [key for key in unexpected_keys if key not in ignored_unexpected_keys]
 
     err = "State key mismatch."
     if unexpected_keys:

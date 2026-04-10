@@ -11,8 +11,6 @@ paths:
   coco_gt: ${paths.base_annotation_path_silver}/silver_fathomnet_test.json
   img_path: ${paths.silver_img_path}/fathomnet/
 
-
-
 # ============================================================================
 # Trainer Configuration
 # ============================================================================

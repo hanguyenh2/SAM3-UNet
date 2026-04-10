@@ -56,9 +56,7 @@ def activation_ckpt_wrapper(module: Union[nn.Module, Callable]) -> Callable:
             callable_fn = module.forward if isinstance(module, nn.Module) else module
             sig = inspect.signature(callable_fn)
             # Create a mapping of parameter names to their default values
-            param_defaults = {
-                name: param.default for name, param in sig.parameters.items()
-            }
+            param_defaults = {name: param.default for name, param in sig.parameters.items()}
             args = []
             for p_name in param_defaults.keys():
                 if p_name in kwargs:
@@ -79,9 +77,7 @@ def activation_ckpt_wrapper(module: Union[nn.Module, Callable]) -> Callable:
                     # If it is required, the module's signature should be modified to accept it as a positional or keyword argument.
                     kwargs[key] = "_REMOVED_BY_ACT_CKPT_WRAPPER_"
 
-            ret = checkpoint.checkpoint(
-                module, *args, use_reentrant=use_reentrant, **kwargs
-            )
+            ret = checkpoint.checkpoint(module, *args, use_reentrant=use_reentrant, **kwargs)
         else:
             ret = module(*args, **kwargs)
 
@@ -107,8 +103,6 @@ def clone_output_wrapper(f: Callable[..., T]) -> Callable[..., T]:
     @wraps(f)
     def wrapped(*args, **kwargs):
         outputs = f(*args, **kwargs)
-        return tree_map_only(
-            torch.Tensor, lambda t: t.clone() if t.is_cuda else t, outputs
-        )
+        return tree_map_only(torch.Tensor, lambda t: t.clone() if t.is_cuda else t, outputs)
 
     return wrapped

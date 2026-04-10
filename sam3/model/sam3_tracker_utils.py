@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from numpy.typing import NDArray
-
 from sam3.model.edt import edt_triton
 
 
@@ -44,9 +43,7 @@ def sample_box_points(
         box_noise = box_noise * torch.stack((max_dx, max_dy, max_dx, max_dy), dim=-1)
 
         box_coords = box_coords + box_noise
-        img_bounds = (
-            torch.tensor([W, H, W, H], device=device) - 1
-        )  # uncentered pixel coords
+        img_bounds = torch.tensor([W, H, W, H], device=device) - 1  # uncentered pixel coords
         box_coords.clamp_(torch.zeros_like(img_bounds), img_bounds)  # In place clamping
 
     box_coords = box_coords.reshape(-1, 2, 2)  # always 2 points
@@ -77,9 +74,7 @@ def mask_to_box(masks: torch.Tensor):
     min_ys, _ = torch.min(torch.where(masks, grid_ys, h).flatten(-2), dim=-1)
     max_ys, _ = torch.max(torch.where(masks, grid_ys, -1).flatten(-2), dim=-1)
     bbox_coords = torch.stack((min_xs, min_ys, max_xs, max_ys), dim=-1)
-    bbox_coords = torch.where(
-        mask_area[..., None] > 0, bbox_coords, torch.zeros_like(bbox_coords)
-    )
+    bbox_coords = torch.where(mask_area[..., None] > 0, bbox_coords, torch.zeros_like(bbox_coords))
     return bbox_coords
 
 
@@ -289,14 +284,10 @@ def select_closest_cond_frames(
         assert max_cond_frame_num >= 2, "we should allow using 2+ conditioning frames"
         selected_outputs = {}
         if keep_first_cond_frame:
-            idx_first = min(
-                (t for t in cond_frame_outputs if t < frame_idx), default=None
-            )
+            idx_first = min((t for t in cond_frame_outputs if t < frame_idx), default=None)
             if idx_first is None:
                 # Maybe we are tracking in reverse
-                idx_first = max(
-                    (t for t in cond_frame_outputs if t > frame_idx), default=None
-                )
+                idx_first = max((t for t in cond_frame_outputs if t > frame_idx), default=None)
             if idx_first is not None:
                 selected_outputs[idx_first] = cond_frame_outputs[idx_first]
         # the closest conditioning frame before `frame_idx` (if any)

@@ -129,12 +129,10 @@ class COCOCustom(COCO):
         ), "Results do not correspond to current coco set"
         # END MODIFICATION
         if "caption" in anns[0]:
-            imgIds = set([img["id"] for img in res.dataset["images"]]) & set(
-                [ann["image_id"] for ann in anns]
-            )
-            res.dataset["images"] = [
-                img for img in res.dataset["images"] if img["id"] in imgIds
-            ]
+            imgIds = {img["id"] for img in res.dataset["images"]} & {
+                ann["image_id"] for ann in anns
+            }
+            res.dataset["images"] = [img for img in res.dataset["images"] if img["id"] in imgIds]
             for id, ann in enumerate(anns):
                 ann["id"] = id + 1
         elif "bbox" in anns[0] and not anns[0]["bbox"] == []:
@@ -142,7 +140,7 @@ class COCOCustom(COCO):
             for id, ann in enumerate(anns):
                 bb = ann["bbox"]
                 x1, x2, y1, y2 = [bb[0], bb[0] + bb[2], bb[1], bb[1] + bb[3]]
-                if not "segmentation" in ann:
+                if "segmentation" not in ann:
                     ann["segmentation"] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
                 ann["area"] = bb[2] * bb[3]
                 ann["id"] = id + 1
@@ -152,7 +150,7 @@ class COCOCustom(COCO):
             for id, ann in enumerate(anns):
                 # now only support compressed RLE format as segmentation results
                 ann["area"] = maskUtils.area(ann["segmentation"])
-                if not "bbox" in ann:
+                if "bbox" not in ann:
                     ann["bbox"] = maskUtils.toBbox(ann["segmentation"])
                 ann["id"] = id + 1
                 ann["iscrowd"] = 0
@@ -166,7 +164,7 @@ class COCOCustom(COCO):
                 ann["area"] = (x1 - x0) * (y1 - y0)
                 ann["id"] = id + 1
                 ann["bbox"] = [x0, y0, x1 - x0, y1 - y0]
-        print("DONE (t={:0.2f}s)".format(time.time() - tic))
+        print(f"DONE (t={time.time() - tic:0.2f}s)")
 
         res.dataset["annotations"] = anns
         # MODIFICATION: inherit images
@@ -405,10 +403,7 @@ class CGF1Eval(COCOeval):
         assert np.all(recall <= 1)
         F1 = 2 * precision * recall / (precision + recall + 1e-4)
         positive_micro_F1 = (
-            2
-            * positive_micro_precision
-            * recall
-            / (positive_micro_precision + recall + 1e-4)
+            2 * positive_micro_precision * recall / (positive_micro_precision + recall + 1e-4)
         )
 
         IL_rec = IL_TPs / (IL_TPs + IL_FNs + 1e-6)
@@ -458,9 +453,7 @@ class CGF1Eval(COCOeval):
             iStr = " {:<18} @[ IoU={:<9}] = {:0.3f}"
             titleStr = "Average " + metric
             iouStr = (
-                "{:0.2f}:{:0.2f}".format(p.iouThrs[0], p.iouThrs[-1])
-                if iouThr is None
-                else "{:0.2f}".format(iouThr)
+                f"{p.iouThrs[0]:0.2f}:{p.iouThrs[-1]:0.2f}" if iouThr is None else f"{iouThr:0.2f}"
             )
 
             s = self.eval[metric]
@@ -490,9 +483,7 @@ class CGF1Eval(COCOeval):
                 if metric.image_level:
                     stats.append(_summarize_single(metric=metric.name))
                 else:
-                    stats.append(
-                        _summarize(iouThr=metric.iou_threshold, metric=metric.name)
-                    )
+                    stats.append(_summarize(iouThr=metric.iou_threshold, metric=metric.name))
             return np.asarray(stats)
 
         summarize = _summarizeDets
@@ -519,9 +510,7 @@ def _evaluate(self):
     else:
         raise RuntimeError(f"Unsupported iou {p.iouType}")
     self.ious = {
-        (imgId, catId): computeIoU(imgId, catId)
-        for imgId in p.imgIds
-        for catId in catIds
+        (imgId, catId): computeIoU(imgId, catId) for imgId in p.imgIds for catId in catIds
     }
 
     maxDet = p.maxDets[-1]
@@ -604,7 +593,7 @@ class CGF1Evaluator:
         if self.verbose:
             print(f"Loading predictions from {pred_file}")
 
-        with open(pred_file, "r") as f:
+        with open(pred_file) as f:
             preds = json.load(f)
 
         if self.verbose:
@@ -622,9 +611,7 @@ class CGF1Evaluator:
                 # suppress pycocotools prints
                 with open(os.devnull, "w") as devnull:
                     with contextlib.redirect_stdout(devnull):
-                        coco_dt = (
-                            cur_coco_gt.loadRes(results) if results else COCOCustom()
-                        )
+                        coco_dt = cur_coco_gt.loadRes(results) if results else COCOCustom()
 
                 coco_eval.cocoDt = coco_dt
                 coco_eval.params.imgIds = [img_id]
@@ -637,16 +624,14 @@ class CGF1Evaluator:
         # After this point, we have selected the best scoring per image among several ground truths
         # we can now accumulate and summarize, using only the first coco_eval
 
-        self.coco_evals[0].evalImgs = list(
-            np.concatenate(all_eval_imgs, axis=2).flatten()
-        )
+        self.coco_evals[0].evalImgs = list(np.concatenate(all_eval_imgs, axis=2).flatten())
         self.coco_evals[0].params.imgIds = self.eval_img_ids
         self.coco_evals[0]._paramsEval = copy.deepcopy(self.coco_evals[0].params)
 
         if self.verbose:
-            print(f"Accumulating results")
+            print("Accumulating results")
         self.coco_evals[0].accumulate()
-        print("cgF1 metric, IoU type={}".format(self.iou_type))
+        print(f"cgF1 metric, IoU type={self.iou_type}")
         self.coco_evals[0].summarize()
         print()
 

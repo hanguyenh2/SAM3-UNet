@@ -90,9 +90,7 @@ def robust_rle_encode(masks):
     except RuntimeError as _:
         masks = masks.cpu().numpy()
         rles = [
-            mask_util.encode(
-                np.array(mask[:, :, np.newaxis], dtype=np.uint8, order="F")
-            )[0]
+            mask_util.encode(np.array(mask[:, :, np.newaxis], dtype=np.uint8, order="F"))[0]
             for mask in masks
         ]
         for rle in rles:

@@ -40,9 +40,7 @@ def mask_intersection(masks1, masks2, block_size=16):
     assert masks1.shape[1:] == masks2.shape[1:]
     assert masks1.dtype == torch.bool and masks2.dtype == torch.bool
 
-    result = torch.zeros(
-        masks1.shape[0], masks2.shape[0], device=masks1.device, dtype=torch.long
-    )
+    result = torch.zeros(masks1.shape[0], masks2.shape[0], device=masks1.device, dtype=torch.long)
     for i in range(0, masks1.shape[0], block_size):
         for j in range(0, masks2.shape[0], block_size):
             intersection = (
@@ -101,9 +99,7 @@ def dilation(mask, kernel_size):
 
     assert mask.ndim == 3
     kernel_size = int(kernel_size)
-    assert (
-        kernel_size % 2 == 1
-    ), f"Dilation expects a odd kernel size, got {kernel_size}"
+    assert kernel_size % 2 == 1, f"Dilation expects a odd kernel size, got {kernel_size}"
 
     if mask.is_cuda:
         m = mask.unsqueeze(1).to(torch.float16)
@@ -240,9 +236,7 @@ def robust_rle_encode(masks):
     except RuntimeError as _:
         masks = masks.cpu().numpy()
         rles = [
-            mask_util.encode(
-                np.array(mask[:, :, np.newaxis], dtype=np.uint8, order="F")
-            )[0]
+            mask_util.encode(np.array(mask[:, :, np.newaxis], dtype=np.uint8, order="F"))[0]
             for mask in masks
         ]
         for rle in rles:

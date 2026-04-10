@@ -1,10 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved
 
-from dataclasses import dataclass, field as field_ptr_behaviour, fields, is_dataclass
-from typing import Any, get_args, get_origin, List, Union
+from dataclasses import fields, is_dataclass
+from typing import Any, List, Union, get_args, get_origin
 
 import torch
-
 from sam3.model.data_misc import (
     BatchedDatapoint,
     BatchedFindTarget,
@@ -13,7 +12,6 @@ from sam3.model.data_misc import (
 )
 
 from .sam3_image_dataset import Datapoint
-
 
 MyTensor = Union[torch.Tensor, List[Any]]
 
@@ -146,9 +144,7 @@ def collate_fn_api(
     text_batch = []
     raw_images = None
 
-    num_stages = (
-        max(q.query_processing_order for data in batch for q in data.find_queries) + 1
-    )
+    num_stages = max(q.query_processing_order for data in batch for q in data.find_queries) + 1
 
     stages = [
         FindStage(
@@ -229,20 +225,12 @@ def collate_fn_api(
                 nb_boxes = q.input_bbox.numel() // 4
                 assert len(q.input_bbox_label) == nb_boxes
                 stages[stage_id].input_boxes.append(q.input_bbox.view(nb_boxes, 4))
-                stages[stage_id].input_boxes_label.append(
-                    q.input_bbox_label.view(nb_boxes)
-                )
-                stages[stage_id].input_boxes_mask.append(
-                    torch.zeros(nb_boxes, dtype=torch.bool)
-                )
+                stages[stage_id].input_boxes_label.append(q.input_bbox_label.view(nb_boxes))
+                stages[stage_id].input_boxes_mask.append(torch.zeros(nb_boxes, dtype=torch.bool))
             else:
                 stages[stage_id].input_boxes.append(torch.zeros(0, 4))
-                stages[stage_id].input_boxes_label.append(
-                    torch.zeros(0, dtype=torch.bool)
-                )
-                stages[stage_id].input_boxes_mask.append(
-                    torch.ones(0, dtype=torch.bool)
-                )
+                stages[stage_id].input_boxes_label.append(torch.zeros(0, dtype=torch.bool))
+                stages[stage_id].input_boxes_mask.append(torch.ones(0, dtype=torch.bool))
 
             if q.input_points is not None:
                 stages[stage_id].input_points.append(
@@ -250,13 +238,9 @@ def collate_fn_api(
                 )
                 # All masks will be padded up to the longest length
                 # with 1s before final conversion to batchd tensors
-                stages[stage_id].input_points_mask.append(
-                    torch.zeros(q.input_points.shape[1])
-                )
+                stages[stage_id].input_points_mask.append(torch.zeros(q.input_points.shape[1]))
             else:
-                stages[stage_id].input_points.append(
-                    torch.empty(0, input_points_embedding_dim)
-                )
+                stages[stage_id].input_points.append(torch.empty(0, input_points_embedding_dim))
                 stages[stage_id].input_points_mask.append(torch.empty(0))
 
             current_out_boxes = []
@@ -264,9 +248,7 @@ def collate_fn_api(
             # Set the object ids referred to by this query
             stages[stage_id].object_ids.append(q.object_ids_output)
             for object_id in q.object_ids_output:
-                current_out_boxes.append(
-                    data.images[q.image_id].objects[object_id].bbox
-                )
+                current_out_boxes.append(data.images[q.image_id].objects[object_id].bbox)
                 current_out_object_ids.append(object_id)
             find_targets[stage_id].boxes.extend(current_out_boxes)
             find_targets[stage_id].object_ids.extend(current_out_object_ids)
@@ -314,9 +296,7 @@ def collate_fn_api(
 
     # Pad input boxes to equal sequence lengths
     for i in range(len(stages)):
-        stages[i].input_boxes = pad_tensor_list_to_longest(
-            stages[i].input_boxes, dim=0, pad_val=0
-        )
+        stages[i].input_boxes = pad_tensor_list_to_longest(stages[i].input_boxes, dim=0, pad_val=0)
         stages[i].input_boxes_label = pad_tensor_list_to_longest(
             stages[i].input_boxes_label, dim=0, pad_val=0
         )

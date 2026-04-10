@@ -78,9 +78,7 @@ class SegmentationHead(nn.Module):
             )
         self.no_dec = no_dec
         if no_dec:
-            self.mask_predictor = nn.Conv2d(
-                hidden_dim, 1, kernel_size=3, stride=1, padding=1
-            )
+            self.mask_predictor = nn.Conv2d(hidden_dim, 1, kernel_size=3, stride=1, padding=1)
         else:
             self.mask_predictor = MaskPredictor(hidden_dim, mask_dim=hidden_dim)
 
@@ -246,7 +244,9 @@ class UniversalSegmentationHead(SegmentationHead):
         self.d_model = hidden_dim
 
         if dot_product_scorer is not None:
-            assert presence_head, "Specifying a dot product scorer without a presence head is likely a mistake"
+            assert (
+                presence_head
+            ), "Specifying a dot product scorer without a presence head is likely a mistake"
 
         self.presence_head = None
         if presence_head:
@@ -261,9 +261,7 @@ class UniversalSegmentationHead(SegmentationHead):
             self.cross_attn_norm = nn.LayerNorm(self.d_model)
 
         self.semantic_seg_head = nn.Conv2d(self.pixel_decoder.out_dim, 1, kernel_size=1)
-        self.instance_seg_head = nn.Conv2d(
-            self.pixel_decoder.out_dim, self.d_model, kernel_size=1
-        )
+        self.instance_seg_head = nn.Conv2d(self.pixel_decoder.out_dim, self.d_model, kernel_size=1)
 
     def forward(
         self,

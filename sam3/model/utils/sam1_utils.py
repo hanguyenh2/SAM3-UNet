@@ -14,9 +14,7 @@ from torchvision.transforms import Normalize, Resize, ToTensor
 
 # Adapted from https://github.com/facebookresearch/sam2/blob/main/sam2/utils/transforms.py
 class SAM2Transforms(nn.Module):
-    def __init__(
-        self, resolution, mask_threshold, max_hole_area=0.0, max_sprinkle_area=0.0
-    ):
+    def __init__(self, resolution, mask_threshold, max_hole_area=0.0, max_sprinkle_area=0.0):
         """
         Transforms for SAM2.
         """
@@ -64,9 +62,7 @@ class SAM2Transforms(nn.Module):
         coords = coords * self.resolution  # unnormalize coords
         return coords
 
-    def transform_boxes(
-        self, boxes: torch.Tensor, normalize=False, orig_hw=None
-    ) -> torch.Tensor:
+    def transform_boxes(self, boxes: torch.Tensor, normalize=False, orig_hw=None) -> torch.Tensor:
         """
         Expects a tensor of shape Bx4. The coordinates can be in absolute image or normalized coordinates,
         if the coords are in absolute image coordinates, normalize should be set to True and original image size is required.

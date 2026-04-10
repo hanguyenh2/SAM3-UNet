@@ -235,9 +235,7 @@ class SigmoidFocalLoss(torch.autograd.Function):
         gamma = ctx.gamma
         n_elements = inputs.numel()
         input_shape = inputs.shape
-        grad_inputs = torch.empty(
-            inputs.shape, dtype=grad_output.dtype, device=grad_output.device
-        )
+        grad_inputs = torch.empty(inputs.shape, dtype=grad_output.dtype, device=grad_output.device)
         inputs_ptr = inputs.view(-1).contiguous()
         targets_ptr = targets.view(-1).contiguous()
         grad_output_ptr = grad_output.view(-1).contiguous()
@@ -298,9 +296,7 @@ class SigmoidFocalLossReduced(torch.autograd.Function):
         gamma = ctx.gamma
         n_elements = inputs.numel()
         input_shape = inputs.shape
-        grad_inputs = torch.empty(
-            inputs.shape, dtype=grad_output.dtype, device=grad_output.device
-        )
+        grad_inputs = torch.empty(inputs.shape, dtype=grad_output.dtype, device=grad_output.device)
         inputs_ptr = inputs.view(-1).contiguous()
         targets_ptr = targets.reshape(-1).contiguous()
         assert grad_output.numel() == 1

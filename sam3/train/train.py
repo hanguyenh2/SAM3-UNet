@@ -10,16 +10,12 @@ from copy import deepcopy
 
 import submitit
 import torch
-
 from hydra import compose, initialize_config_module
 from hydra.utils import instantiate
-
 from iopath.common.file_io import g_pathmgr
 from omegaconf import OmegaConf
-
 from sam3.train.utils.train_utils import makedir, register_omegaconf_resolvers
 from tqdm import tqdm
-
 
 os.environ["HYDRA_FULL_ERROR"] = "1"
 
@@ -62,9 +58,7 @@ def single_node_runner(cfg, main_port: int):
     assert cfg.launcher.num_nodes == 1
     # assert cfg.launcher.gpus_per_node == 1
     num_proc = cfg.launcher.gpus_per_node
-    torch.multiprocessing.set_start_method(
-        "spawn"
-    )  # CUDA runtime does not support `fork`
+    torch.multiprocessing.set_start_method("spawn")  # CUDA runtime does not support `fork`
     if num_proc == 1:
         # directly call single_proc so we can easily set breakpoints
         # mp.spawn does not let us set breakpoints
@@ -141,18 +135,14 @@ def add_pythonpath_to_sys_path():
 def main(args) -> None:
     cfg = compose(config_name=args.config)
     if cfg.launcher.experiment_log_dir is None:
-        cfg.launcher.experiment_log_dir = os.path.join(
-            os.getcwd(), "sam3_logs", args.config
-        )
+        cfg.launcher.experiment_log_dir = os.path.join(os.getcwd(), "sam3_logs", args.config)
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))
     print("############################################################")
 
     add_pythonpath_to_sys_path()
     makedir(cfg.launcher.experiment_log_dir)
-    with g_pathmgr.open(
-        os.path.join(cfg.launcher.experiment_log_dir, "config.yaml"), "w"
-    ) as f:
+    with g_pathmgr.open(os.path.join(cfg.launcher.experiment_log_dir, "config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg))
 
     cfg_resolved = OmegaConf.to_container(cfg, resolve=False)
@@ -183,23 +173,15 @@ def main(args) -> None:
     if submitit_conf.use_cluster:
         executor = submitit.AutoExecutor(folder=submitit_dir)
         submitit_conf.partition = (
-            args.partition
-            if args.partition is not None
-            else submitit_conf.get("partition", None)
+            args.partition if args.partition is not None else submitit_conf.get("partition", None)
         )
         submitit_conf.account = (
-            args.account
-            if args.account is not None
-            else submitit_conf.get("account", None)
+            args.account if args.account is not None else submitit_conf.get("account", None)
         )
-        submitit_conf.qos = (
-            args.qos if args.qos is not None else submitit_conf.get("qos", None)
-        )
+        submitit_conf.qos = args.qos if args.qos is not None else submitit_conf.get("qos", None)
         job_kwargs = {
             "timeout_min": 60 * submitit_conf.timeout_hour,
-            "name": (
-                submitit_conf.name if hasattr(submitit_conf, "name") else args.config
-            ),
+            "name": (submitit_conf.name if hasattr(submitit_conf, "name") else args.config),
             "slurm_partition": submitit_conf.partition,
             "gpus_per_node": cfg.launcher.gpus_per_node,
             "tasks_per_node": cfg.launcher.gpus_per_node,  # one task per GPU
@@ -245,10 +227,7 @@ def main(args) -> None:
         print("##########################################")
         executor.update_parameters(**job_kwargs)
 
-        if (
-            "job_array" in submitit_conf
-            and submitit_conf.job_array.get("num_tasks", -1) > 0
-        ):
+        if "job_array" in submitit_conf and submitit_conf.job_array.get("num_tasks", -1) > 0:
             num_tasks = submitit_conf.job_array.num_tasks
             job_array_config_dir = os.path.join(
                 cfg.launcher.experiment_log_dir, "job_array_configs"
@@ -270,9 +249,7 @@ def main(args) -> None:
                     curr_cfg_resolved = handle_custom_resolving(cfg)
                     runner = SubmititRunner(main_port, curr_cfg)
                     job = executor.submit(runner)
-                    jobs_runners_configs.append(
-                        (job, runner, curr_cfg, curr_cfg_resolved)
-                    )
+                    jobs_runners_configs.append((job, runner, curr_cfg, curr_cfg_resolved))
                     task_index += 1
 
             for job, runner, job_cfg, job_cfg_resolved in jobs_runners_configs:
@@ -280,13 +257,13 @@ def main(args) -> None:
 
                 # Save job specific config
                 job_array_config_file = os.path.join(
-                    job_array_config_dir, "{}.config.yaml".format(job.job_id)
+                    job_array_config_dir, f"{job.job_id}.config.yaml"
                 )
                 with g_pathmgr.open(job_array_config_file, "w") as f:
                     f.write(OmegaConf.to_yaml(job_cfg))
 
                 job_array_config_resolved_file = os.path.join(
-                    job_array_config_dir, "{}.config_resolved.yaml".format(job.job_id)
+                    job_array_config_dir, f"{job.job_id}.config_resolved.yaml"
                 )
                 with g_pathmgr.open(job_array_config_resolved_file, "w") as f:
                     f.write(OmegaConf.to_yaml(job_cfg_resolved, resolve=True))
@@ -294,9 +271,7 @@ def main(args) -> None:
                 runner.setup_job_info(job.job_id, rank=0)
                 # runner.log_event(event_type=SlurmEvent.QUEUED)
         else:
-            main_port = random.randint(
-                submitit_conf.port_range[0], submitit_conf.port_range[1]
-            )
+            main_port = random.randint(submitit_conf.port_range[0], submitit_conf.port_range[1])
             runner = SubmititRunner(main_port, cfg)
             job = executor.submit(runner)
             print(f"Submitit Job ID: {job.job_id}")
@@ -304,9 +279,7 @@ def main(args) -> None:
 
     else:
         cfg.launcher.num_nodes = 1
-        main_port = random.randint(
-            submitit_conf.port_range[0], submitit_conf.port_range[1]
-        )
+        main_port = random.randint(submitit_conf.port_range[0], submitit_conf.port_range[1])
         single_node_runner(cfg, main_port)
 
 
@@ -329,9 +302,7 @@ if __name__ == "__main__":
     parser.add_argument("--partition", type=str, default=None, help="SLURM partition")
     parser.add_argument("--account", type=str, default=None, help="SLURM account")
     parser.add_argument("--qos", type=str, default=None, help="SLURM qos")
-    parser.add_argument(
-        "--num-gpus", type=int, default=None, help="number of GPUS per node"
-    )
+    parser.add_argument("--num-gpus", type=int, default=None, help="number of GPUS per node")
     parser.add_argument("--num-nodes", type=int, default=None, help="Number of nodes")
     args = parser.parse_args()
     args.use_cluster = bool(args.use_cluster) if args.use_cluster is not None else None

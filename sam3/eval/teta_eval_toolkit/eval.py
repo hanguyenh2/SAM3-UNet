@@ -250,7 +250,7 @@ def eval_sequence(seq, dataset, tracker, class_list, metrics_list, metric_names)
         # create a dict to save Cls_FP for each class in different thr.
         cls_fp = {
             key: {
-                cls: np.zeros((len(np.arange(0.5, 0.99, 0.05)))) for cls in class_list
+                cls: np.zeros(len(np.arange(0.5, 0.99, 0.05))) for cls in class_list
             }
             for key in thresholds
         }

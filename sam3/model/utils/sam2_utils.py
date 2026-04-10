@@ -129,9 +129,7 @@ def load_video_frames(
             compute_device=compute_device,
         )
     else:
-        raise NotImplementedError(
-            "Only MP4 video and JPEG folder are supported at this moment"
-        )
+        raise NotImplementedError("Only MP4 video and JPEG folder are supported at this moment")
 
 
 def load_video_frames_from_jpg_images(

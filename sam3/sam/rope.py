@@ -30,12 +30,8 @@ def compute_axial_cis(
     offset: int = 0,
     device=None,
 ):
-    freqs_x = 1.0 / (
-        theta ** (torch.arange(0, dim, 4, device=device)[: (dim // 4)].float() / dim)
-    )
-    freqs_y = 1.0 / (
-        theta ** (torch.arange(0, dim, 4, device=device)[: (dim // 4)].float() / dim)
-    )
+    freqs_x = 1.0 / (theta ** (torch.arange(0, dim, 4, device=device)[: (dim // 4)].float() / dim))
+    freqs_y = 1.0 / (theta ** (torch.arange(0, dim, 4, device=device)[: (dim // 4)].float() / dim))
 
     t_x, t_y = init_t_xy(end_x, end_y, scale_pos, offset, device=device)
     freqs_x = torch.outer(t_x, freqs_x)

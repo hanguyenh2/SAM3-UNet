@@ -29,14 +29,10 @@ class ResidualAttentionBlock(nn.Module):
         self.ln_2 = norm_layer(d_model)
 
         self.ls_1 = (
-            LayerScale(d_model, ls_init_value)
-            if ls_init_value is not None
-            else nn.Identity()
+            LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
         )
         self.ls_2 = (
-            LayerScale(d_model, ls_init_value)
-            if ls_init_value is not None
-            else nn.Identity()
+            LayerScale(d_model, ls_init_value) if ls_init_value is not None else nn.Identity()
         )
 
         # MLP
@@ -74,12 +70,8 @@ class ResidualAttentionBlock(nn.Module):
         v_x: Optional[torch.Tensor] = None,
         attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        k_x = (
-            self.ln_1_kv(k_x) if hasattr(self, "ln_1_kv") and k_x is not None else None
-        )
-        v_x = (
-            self.ln_1_kv(v_x) if hasattr(self, "ln_1_kv") and v_x is not None else None
-        )
+        k_x = self.ln_1_kv(k_x) if hasattr(self, "ln_1_kv") and k_x is not None else None
+        v_x = self.ln_1_kv(v_x) if hasattr(self, "ln_1_kv") and v_x is not None else None
         x = q_x + self.ls_1(
             self.attention(q_x=self.ln_1(q_x), k_x=k_x, v_x=v_x, attn_mask=attn_mask)
         )
@@ -119,9 +111,7 @@ class Transformer(nn.Module):
         )
 
         if compile_mode is not None:
-            self.forward = torch.compile(
-                self.forward, mode=compile_mode, fullgraph=True
-            )
+            self.forward = torch.compile(self.forward, mode=compile_mode, fullgraph=True)
             if self.grad_checkpointing:
                 torch._dynamo.config.optimize_ddp = False
 
@@ -131,11 +121,7 @@ class Transformer(nn.Module):
         attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         for _, r in enumerate(self.resblocks):
-            if (
-                self.grad_checkpointing
-                and not torch.jit.is_scripting()
-                and self.training
-            ):
+            if self.grad_checkpointing and not torch.jit.is_scripting() and self.training:
                 x = checkpoint(r, x, None, None, attn_mask, use_reentrant=False)
             else:
                 x = r(
@@ -209,9 +195,7 @@ class TextTransformer(nn.Module):
         if no_causal_mask:
             self.attn_mask = None
         else:
-            self.register_buffer(
-                "attn_mask", self.build_causal_mask(), persistent=False
-            )
+            self.register_buffer("attn_mask", self.build_causal_mask(), persistent=False)
         if proj_bias:
             self.text_projection = nn.Linear(width, output_dim)
         else:
@@ -300,9 +284,7 @@ class VETextEncoder(nn.Module):
             text_attention_mask = (tokenized != 0).bool()
 
             # manually embed the tokens
-            inputs_embeds = self.encoder.token_embedding(
-                tokenized
-            )  # [b, seq_len, d=1024]
+            inputs_embeds = self.encoder.token_embedding(tokenized)  # [b, seq_len, d=1024]
             _, text_memory = self.encoder(tokenized)  # [b, seq_len, d=1024]
 
             assert text_memory.shape[1] == inputs_embeds.shape[1]

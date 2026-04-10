@@ -71,9 +71,7 @@ class _BaseMetric(ABC):
         """Prints table of results for all sequences"""
         print("")
         metric_name = self.get_name()
-        self._row_print(
-            [metric_name + ": " + tracker + "-" + cls] + self.summary_fields
-        )
+        self._row_print([metric_name + ": " + tracker + "-" + cls] + self.summary_fields)
         for seq, results in sorted(table_res.items()):
             if seq.startswith("COMBINED_SEQ"):
                 continue
@@ -86,15 +84,13 @@ class _BaseMetric(ABC):
         vals = []
         for h in self.summary_fields:
             if h in self.float_array_fields:
-                vals.append("{0:1.5g}".format(100 * np.mean(results_[h])))
+                vals.append(f"{100 * np.mean(results_[h]):1.5g}")
             elif h in self.float_fields:
-                vals.append("{0:1.5g}".format(100 * float(results_[h])))
+                vals.append(f"{100 * float(results_[h]):1.5g}")
             elif h in self.integer_fields:
-                vals.append("{0:d}".format(int(results_[h])))
+                vals.append(f"{int(results_[h]):d}")
             else:
-                raise NotImplementedError(
-                    "Summary function not implemented for this field type."
-                )
+                raise NotImplementedError("Summary function not implemented for this field type.")
         return vals
 
     @staticmethod
@@ -109,9 +105,7 @@ class _BaseMetric(ABC):
 
     def summary_results(self, table_res):
         """Returns a simple summary of final results for a tracker"""
-        return dict(
-            zip(self.summary_fields, self._summary_row(table_res["COMBINED_SEQ"]))
-        )
+        return dict(zip(self.summary_fields, self._summary_row(table_res["COMBINED_SEQ"])))
 
     def detailed_results(self, table_res):
         """Returns detailed final results for a tracker"""

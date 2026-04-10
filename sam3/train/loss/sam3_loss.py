@@ -1,9 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved
 
 import torch
-
 from sam3.model.model_misc import SAM3Output
-
 from sam3.train.utils.distributed import get_world_size
 
 from .loss_fns import CORE_LOSS_KEY, Det2TrkAssoc, Masks
@@ -89,8 +87,7 @@ class Sam3LossWrapper(torch.nn.Module):
         output_list = [(nested_out, "", False)]  # (out, suffix, is_aux)
         if "aux_outputs" in nested_out:
             output_list.extend(
-                (aux_out, f"_aux_{i}", True)
-                for i, aux_out in enumerate(nested_out["aux_outputs"])
+                (aux_out, f"_aux_{i}", True) for i, aux_out in enumerate(nested_out["aux_outputs"])
             )
         if "first_stage" in nested_out:
             output_list.append((nested_out["first_stage"], "_fs", True))
@@ -104,9 +101,7 @@ class Sam3LossWrapper(torch.nn.Module):
             indices = out["indices"]
             has_o2m_out = "pred_logits_o2m" in out
             if has_o2m_out:
-                o2m_out = {
-                    k[: -len("_o2m")]: v for k, v in out.items() if k.endswith("_o2m")
-                }
+                o2m_out = {k[: -len("_o2m")]: v for k, v in out.items() if k.endswith("_o2m")}
                 # o2m targets are the same as the o2o targets (assuming repeat=1)
                 o2m_targets = targets
                 if self.use_o2m_matcher_on_o2m_aux or not is_aux:
@@ -173,12 +168,8 @@ class Sam3LossWrapper(torch.nn.Module):
                     cur_losses = self.compute_loss(outputs, targets)
 
                     if self.loss_fn_semantic_seg is not None:
-                        cur_losses_semantic = self.loss_fn_semantic_seg(
-                            outputs, targets
-                        )
-                        cur_losses[CORE_LOSS_KEY] += cur_losses_semantic.pop(
-                            CORE_LOSS_KEY
-                        )
+                        cur_losses_semantic = self.loss_fn_semantic_seg(outputs, targets)
+                        cur_losses[CORE_LOSS_KEY] += cur_losses_semantic.pop(CORE_LOSS_KEY)
                         # make sure the semantic losses don't overlap with the find losses
                         assert set(cur_losses).isdisjoint(set(cur_losses_semantic))
                         cur_losses.update(cur_losses_semantic)

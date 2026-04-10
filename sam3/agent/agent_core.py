@@ -43,10 +43,7 @@ def count_images(messages):
             # Iterate through each content item
             for content_item in message["content"]:
                 # Check if content item is a dict with type "image"
-                if (
-                    isinstance(content_item, dict)
-                    and content_item.get("type") == "image"
-                ):
+                if isinstance(content_item, dict) and content_item.get("type") == "image":
                     total += 1
     return total
 
@@ -146,18 +143,14 @@ def agent_inference(
     os.makedirs(error_save_dir, exist_ok=True)
     os.makedirs(debug_save_dir, exist_ok=True)
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    MLLM_SYSTEM_PROMPT_PATH = os.path.join(
-        current_dir, "system_prompts/system_prompt.txt"
-    )
+    MLLM_SYSTEM_PROMPT_PATH = os.path.join(current_dir, "system_prompts/system_prompt.txt")
     ITERATIVE_CHECKING_SYSTEM_PROMPT_PATH = os.path.join(
         current_dir, "system_prompts/system_prompt_iterative_checking.txt"
     )
     # init variables
     PATH_TO_LATEST_OUTPUT_JSON = ""
     LATEST_SAM3_TEXT_PROMPT = ""
-    USED_TEXT_PROMPTS = (
-        set()
-    )  # Track all previously used text prompts for segment_phrase
+    USED_TEXT_PROMPTS = set()  # Track all previously used text prompts for segment_phrase
     generation_count = 0  # Counter for number of send_generate_request calls
 
     # debug setup
@@ -171,9 +164,9 @@ def agent_inference(
         os.makedirs(debug_folder_path, exist_ok=True)
 
     # The helper functions are now defined outside the agent_inference function
-    with open(MLLM_SYSTEM_PROMPT_PATH, "r") as f:
+    with open(MLLM_SYSTEM_PROMPT_PATH) as f:
         system_prompt = f.read().strip()
-    with open(ITERATIVE_CHECKING_SYSTEM_PROMPT_PATH, "r") as f:
+    with open(ITERATIVE_CHECKING_SYSTEM_PROMPT_PATH) as f:
         iterative_checking_system_prompt = f.read().strip()
 
     # Construct the initial message list
@@ -218,10 +211,7 @@ def agent_inference(
 
         if PATH_TO_LATEST_OUTPUT_JSON == "":
             # The first tool call must be segment_phrase or report_no_mask
-            assert (
-                tool_call["name"] == "segment_phrase"
-                or tool_call["name"] == "report_no_mask"
-            )
+            assert tool_call["name"] == "segment_phrase" or tool_call["name"] == "report_no_mask"
 
         if tool_call["name"] == "segment_phrase":
             print("🔍 Calling segment_phrase tool...")
@@ -255,7 +245,7 @@ def agent_inference(
                     text_prompt=current_text_prompt,
                     output_folder_path=sam_output_dir,
                 )
-                sam3_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON, "r"))
+                sam3_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON))
                 sam3_output_image_path = sam3_outputs["output_image_path"]
                 num_masks = len(sam3_outputs["pred_boxes"])
 
@@ -271,9 +261,7 @@ def agent_inference(
                     messages.append(
                         {
                             "role": "user",
-                            "content": [
-                                {"type": "text", "text": sam3_output_text_message}
-                            ],
+                            "content": [{"type": "text", "text": sam3_output_text_message}],
                         }
                     )
                 else:
@@ -310,7 +298,7 @@ def agent_inference(
             }
             messages.append(simplified_message)
 
-            current_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON, "r"))
+            current_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON))
             num_masks = len(current_outputs["pred_masks"])
             masks_to_keep = []
 
@@ -333,7 +321,7 @@ def agent_inference(
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": f"The raw input image: "},
+                            {"type": "text", "text": "The raw input image: "},
                             {"type": "image", "image": img_path},
                             {
                                 "type": "text",
@@ -341,20 +329,18 @@ def agent_inference(
                             },
                             {
                                 "type": "text",
-                                "text": f"Image with the predicted segmentation mask rendered on it: ",
+                                "text": "Image with the predicted segmentation mask rendered on it: ",
                             },
                             {"type": "image", "image": image_w_mask_i_path},
                             {
                                 "type": "text",
-                                "text": f"Image with the zoomed-in mask: ",
+                                "text": "Image with the zoomed-in mask: ",
                             },
                             {"type": "image", "image": image_w_zoomed_in_mask_i_path},
                         ],
                     },
                 ]
-                checking_generated_text = send_generate_request(
-                    iterative_checking_messages
-                )
+                checking_generated_text = send_generate_request(iterative_checking_messages)
 
                 # Process the generated text to determine if the mask should be kept or rejected
                 if checking_generated_text is None:
@@ -363,16 +349,14 @@ def agent_inference(
                     )
                 print(f"Generated text for mask {i+1}: {checking_generated_text}")
                 verdict = (
-                    checking_generated_text.split("<verdict>")[-1]
-                    .split("</verdict>")[0]
-                    .strip()
+                    checking_generated_text.split("<verdict>")[-1].split("</verdict>")[0].strip()
                 )
                 if "Accept" in verdict:
-                    assert not "Reject" in verdict
+                    assert "Reject" not in verdict
                     print(f"Mask {i+1} accepted, keeping it in the outputs.")
                     masks_to_keep.append(i)
                 elif "Reject" in verdict:
-                    assert not "Accept" in verdict
+                    assert "Accept" not in verdict
                     print(f"Mask {i+1} rejected, removing it from the outputs.")
                 else:
                     raise ValueError(
@@ -384,9 +368,7 @@ def agent_inference(
                 "orig_img_h": current_outputs["orig_img_h"],
                 "orig_img_w": current_outputs["orig_img_w"],
                 "pred_boxes": [current_outputs["pred_boxes"][i] for i in masks_to_keep],
-                "pred_scores": [
-                    current_outputs["pred_scores"][i] for i in masks_to_keep
-                ],
+                "pred_scores": [current_outputs["pred_scores"][i] for i in masks_to_keep],
                 "pred_masks": [current_outputs["pred_masks"][i] for i in masks_to_keep],
             }
 
@@ -440,9 +422,7 @@ def agent_inference(
                 base_path = base_path.split("masks_")[0] + ".json"
             # Create new filename with current masks; use a clearer suffix when empty
             if len(masks_to_keep) == 0:
-                PATH_TO_LATEST_OUTPUT_JSON = base_path.replace(
-                    ".json", "masks_none.json"
-                )
+                PATH_TO_LATEST_OUTPUT_JSON = base_path.replace(".json", "masks_none.json")
             else:
                 PATH_TO_LATEST_OUTPUT_JSON = base_path.replace(
                     ".json", f"masks_{'_'.join(map(str, masks_to_keep))}.json"
@@ -451,7 +431,7 @@ def agent_inference(
 
         elif tool_call["name"] == "select_masks_and_return":
             print("🔍 Calling select_masks_and_return tool...")
-            current_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON, "r"))
+            current_outputs = json.load(open(PATH_TO_LATEST_OUTPUT_JSON))
 
             assert list(tool_call["parameters"].keys()) == ["final_answer_masks"]
             masks_to_keep = tool_call["parameters"]["final_answer_masks"]
@@ -465,15 +445,9 @@ def agent_inference(
                 "original_image_path": current_outputs["original_image_path"],
                 "orig_img_h": current_outputs["orig_img_h"],
                 "orig_img_w": current_outputs["orig_img_w"],
-                "pred_boxes": [
-                    current_outputs["pred_boxes"][i - 1] for i in masks_to_keep
-                ],
-                "pred_scores": [
-                    current_outputs["pred_scores"][i - 1] for i in masks_to_keep
-                ],
-                "pred_masks": [
-                    current_outputs["pred_masks"][i - 1] for i in masks_to_keep
-                ],
+                "pred_boxes": [current_outputs["pred_boxes"][i - 1] for i in masks_to_keep],
+                "pred_scores": [current_outputs["pred_scores"][i - 1] for i in masks_to_keep],
+                "pred_masks": [current_outputs["pred_masks"][i - 1] for i in masks_to_keep],
             }
 
             rendered_final_output = visualize(final_outputs)
@@ -521,9 +495,7 @@ def agent_inference(
                         and content.get("type") == "text"
                         and "text" in content
                     ):
-                        content["text"] = (
-                            content["text"].split("</tool>", 1)[0] + "</tool>\n\n"
-                        )
+                        content["text"] = content["text"].split("</tool>", 1)[0] + "</tool>\n\n"
         # Prune the messages history before the next MLLM generation round according to the 3-part rules.
         # This keeps history compact and ensures the model sees only the allowed parts.
         messages = _prune_messages_for_next_round(
@@ -545,9 +517,7 @@ def agent_inference(
         print("-" * 30 + f" Round {str(generation_count + 1)}" + "-" * 30)
         print("\n\n")
         generated_text = send_generate_request(messages)
-        print(
-            f"\n>>> MLLM Response [start]\n{generated_text}\n<<< MLLM Response [end]\n"
-        )
+        print(f"\n>>> MLLM Response [start]\n{generated_text}\n<<< MLLM Response [end]\n")
 
     print("\n\n>>> SAM 3 Agent execution ended.\n\n")
 

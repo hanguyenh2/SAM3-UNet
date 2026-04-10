@@ -9,7 +9,6 @@ from datetime import timedelta
 from typing import Optional
 
 import hydra
-
 import numpy as np
 import omegaconf
 import torch
@@ -206,15 +205,7 @@ class MemMeter:
             torch.cuda.reset_peak_memory_stats()
 
     def __str__(self):
-        fmtstr = (
-            "{name}: {val"
-            + self.fmt
-            + "} ({avg"
-            + self.fmt
-            + "}/{peak"
-            + self.fmt
-            + "})"
-        )
+        fmtstr = "{name}: {val" + self.fmt + "} ({avg" + self.fmt + "}/{peak" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
 
 

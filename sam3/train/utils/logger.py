@@ -8,10 +8,8 @@ import uuid
 from typing import Any, Dict, Optional, Union
 
 from hydra.utils import instantiate
-
 from iopath.common.file_io import g_pathmgr
 from numpy import ndarray
-
 from sam3.train.utils.train_utils import get_machine_local_and_dist_rank, makedir
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
@@ -68,9 +66,7 @@ class TensorBoardWriterWrapper:
                 **kwargs,
             )
         else:
-            logging.debug(
-                f"Not logging meters on this host because env RANK: {self._rank} != 0"
-            )
+            logging.debug(f"Not logging meters on this host because env RANK: {self._rank} != 0")
         atexit.register(self.close)
 
     @property
@@ -130,9 +126,7 @@ class TensorBoardLogger(TensorBoardWriterWrapper):
             return
         self._writer.add_scalar(name, data, global_step=step, new_style=True)
 
-    def log_hparams(
-        self, hparams: Dict[str, Scalar], meters: Dict[str, Scalar]
-    ) -> None:
+    def log_hparams(self, hparams: Dict[str, Scalar], meters: Dict[str, Scalar]) -> None:
         """Add hyperparameter data to TensorBoard.
 
         Args:
@@ -163,9 +157,7 @@ class Logger:
         if self.tb_logger:
             self.tb_logger.log(name, data, step)
 
-    def log_hparams(
-        self, hparams: Dict[str, Scalar], meters: Dict[str, Scalar]
-    ) -> None:
+    def log_hparams(self, hparams: Dict[str, Scalar], meters: Dict[str, Scalar]) -> None:
         if self.tb_logger:
             self.tb_logger.log_hparams(hparams, meters)
 

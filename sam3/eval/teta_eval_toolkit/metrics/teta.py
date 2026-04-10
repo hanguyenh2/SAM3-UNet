@@ -147,9 +147,9 @@ class TETA(_BaseMetric):
             for a, alpha in enumerate(self.array_labels):
                 match_row, match_col = amatch_rows[a], amatch_cols[a]
                 num_matches = len(match_row)
-                matched_ori_ids = set(
-                    [data["tk_id_map"][tid] for tid in tk_ids_t[match_col]]
-                )
+                matched_ori_ids = {
+                    data["tk_id_map"][tid] for tid in tk_ids_t[match_col]
+                }
                 match_tk_cls = data["tk_classes"][t][match_col]
                 wrong_tk_cls = match_tk_cls[match_tk_cls != data["gt_classes"][t]]
 

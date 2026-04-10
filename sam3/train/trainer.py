@@ -13,33 +13,30 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
 import numpy as np
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 from hydra.utils import instantiate
 from iopath.common.file_io import g_pathmgr
-
 from sam3.model.data_misc import BatchedDatapoint
 from sam3.model.model_misc import SAM3Output
 from sam3.model.utils.misc import copy_data_to_device
-
 from sam3.train.optim.optimizer import construct_optimizer
-
 from sam3.train.utils.checkpoint_utils import (
     assert_skipped_parameters_are_frozen,
     exclude_params_matching_unix_pattern,
     load_state_dict_into_model,
     with_check_parameter_frozen,
 )
-
 from sam3.train.utils.distributed import all_reduce_max, barrier, get_rank
-
 from sam3.train.utils.logger import Logger, setup_logging
 from sam3.train.utils.train_utils import (
     AverageMeter,
-    collect_dict_keys,
     DurationMeter,
+    MemMeter,
+    Phase,
+    ProgressMeter,
+    collect_dict_keys,
     get_amp_type,
     get_machine_local_and_dist_rank,
     get_resume_checkpoint,
@@ -47,13 +44,9 @@ from sam3.train.utils.train_utils import (
     is_dist_avail_and_initialized,
     log_env_variables,
     makedir,
-    MemMeter,
-    Phase,
-    ProgressMeter,
     set_seeds,
     setup_distributed_backend,
 )
-
 
 CORE_LOSS_KEY = "core_loss"
 
@@ -336,9 +329,7 @@ class Trainer:
 
     def save_checkpoint(self, epoch, checkpoint_names=None):
         if self.skip_saving_ckpts:
-            logging.info(
-                "skip_saving_ckpts is set to True. So, no checkpoints have been saved."
-            )
+            logging.info("skip_saving_ckpts is set to True. So, no checkpoints have been saved.")
             return
         checkpoint_folder = self.checkpoint_conf.save_dir
         makedir(checkpoint_folder)
@@ -428,9 +419,7 @@ class Trainer:
             self._call_model_initializer()
 
     def _call_model_initializer(self):
-        model_weight_initializer = instantiate(
-            self.checkpoint_conf.model_weight_initializer
-        )
+        model_weight_initializer = instantiate(self.checkpoint_conf.model_weight_initializer)
         if model_weight_initializer is not None:
             logging.info(
                 f"Loading pretrained checkpoint from {self.checkpoint_conf.model_weight_initializer}"
@@ -464,20 +453,14 @@ class Trainer:
 
     def is_intermediate_val_epoch(self, epoch):
         skip_epoch = self.skip_first_val and epoch == 0
-        return (
-            epoch % self.val_epoch_freq == 0
-            and epoch < self.max_epochs - 1
-            and not skip_epoch
-        )
+        return epoch % self.val_epoch_freq == 0 and epoch < self.max_epochs - 1 and not skip_epoch
 
     def _find_loss(self, key: str):
         if key in self.loss:
             return self.loss[key]
 
         assert key != "all", "Loss must be specified for key='all'"
-        assert (
-            "default" in self.loss
-        ), f"Key {key} not found in losss, and no default provided"
+        assert "default" in self.loss, f"Key {key} not found in losss, and no default provided"
         return self.loss["default"]
 
     def _find_meter(self, phase: str, key: str):
@@ -499,9 +482,7 @@ class Trainer:
         batch = copy_data_to_device(batch, self.device, non_blocking=True)
 
         find_stages = model(batch)
-        find_targets = [
-            unwrap_ddp_if_wrapped(model).back_convert(x) for x in batch.find_targets
-        ]
+        find_targets = [unwrap_ddp_if_wrapped(model).back_convert(x) for x in batch.find_targets]
         batch_size = len(batch.img_batch)
         loss = self._find_loss(key)(find_stages, find_targets)
 
@@ -512,9 +493,7 @@ class Trainer:
         # loss contains multiple sub-components we wish to log
         step_losses = {}
         if isinstance(loss, dict):
-            step_losses.update(
-                {f"Losses/{phase}_{key}_{k}": v for k, v in loss.items()}
-            )
+            step_losses.update({f"Losses/{phase}_{key}_{k}": v for k, v in loss.items()})
             loss = self._log_loss_detailed_and_return_core_loss(
                 loss, loss_log_str, self.steps[phase]
             )
@@ -669,7 +648,7 @@ class Trainer:
             iters_per_epoch,
             [batch_time, data_time, mem, self.time_elapsed_meter, *loss_mts.values()],
             self._get_meters(curr_phases),
-            prefix="Val Epoch: [{}]".format(self.epoch),
+            prefix=f"Val Epoch: [{self.epoch}]",
         )
 
         end = time.time()
@@ -686,9 +665,7 @@ class Trainer:
                     device_type="cuda",
                     enabled=(self.optim_conf.amp.enabled if self.optim_conf else False),
                     dtype=(
-                        get_amp_type(self.optim_conf.amp.amp_dtype)
-                        if self.optim_conf
-                        else None
+                        get_amp_type(self.optim_conf.amp.amp_dtype) if self.optim_conf else None
                     ),
                 ):
                     for phase, model in zip(curr_phases, curr_models):
@@ -713,9 +690,7 @@ class Trainer:
             batch_time.update(time.time() - end)
             end = time.time()
 
-            self.time_elapsed_meter.update(
-                time.time() - self.start_time + self.ckpt_time_elapsed
-            )
+            self.time_elapsed_meter.update(time.time() - self.start_time + self.ckpt_time_elapsed)
 
             if torch.cuda.is_available():
                 mem.update(reset_peak_usage=True)
@@ -790,7 +765,7 @@ class Trainer:
                 *loss_mts.values(),
             ],
             self._get_meters([phase]),
-            prefix="Train Epoch: [{}]".format(self.epoch),
+            prefix=f"Train Epoch: [{self.epoch}]",
         )
 
         # Model training loop
@@ -813,9 +788,7 @@ class Trainer:
                 self.where = float(exact_epoch) / self.max_epochs
                 assert self.where <= 1 + self.EPSILON
                 if self.where < 1.0:
-                    self.optim.step_schedulers(
-                        self.where, step=int(exact_epoch * iters_per_epoch)
-                    )
+                    self.optim.step_schedulers(self.where, step=int(exact_epoch * iters_per_epoch))
                 else:
                     logging.warning(
                         f"Skipping scheduler update since the training is at the end, i.e, {self.where} of [0,1]."
@@ -826,9 +799,7 @@ class Trainer:
                     for j, param_group in enumerate(self.optim.optimizer.param_groups):
                         for option in self.optim.schedulers[j]:
                             optim_prefix = (
-                                "" + f"{j}_"
-                                if len(self.optim.optimizer.param_groups) > 1
-                                else ""
+                                "" + f"{j}_" if len(self.optim.optimizer.param_groups) > 1 else ""
                             )
                             self.logger.log(
                                 os.path.join("Optim", f"{optim_prefix}", option),
@@ -842,9 +813,7 @@ class Trainer:
                     self.gradient_clipper(model=self.model)
 
                 if self.gradient_logger is not None:
-                    self.gradient_logger(
-                        self.model, rank=self.distributed_rank, where=self.where
-                    )
+                    self.gradient_logger(self.model, rank=self.distributed_rank, where=self.where)
 
                 # Optimizer step: the scaler will make sure gradients are not
                 # applied if the gradients are infinite
@@ -920,9 +889,7 @@ class Trainer:
         self.optim.zero_grad(set_to_none=True)
 
         if self.gradient_accumulation_steps > 1:
-            assert isinstance(
-                batch, list
-            ), f"Expected a list of batches, got {type(batch)}"
+            assert isinstance(batch, list), f"Expected a list of batches, got {type(batch)}"
             assert (
                 len(batch) == self.gradient_accumulation_steps
             ), f"Expected {self.gradient_accumulation_steps} batches, got {len(batch)}"
@@ -932,11 +899,7 @@ class Trainer:
             batch = [batch]
 
         for i, chunked_batch in enumerate(batch):
-            ddp_context = (
-                self.model.no_sync()
-                if i < accum_steps - 1
-                else contextlib.nullcontext()
-            )
+            ddp_context = self.model.no_sync() if i < accum_steps - 1 else contextlib.nullcontext()
             with ddp_context:
                 with torch.amp.autocast(
                     device_type="cuda",
@@ -1050,7 +1013,7 @@ class Trainer:
                 )
 
             if self.loss_conf is not None:
-                loss_keys = set(self.loss_conf.keys()) - set(["all"])
+                loss_keys = set(self.loss_conf.keys()) - {"all"}
                 if "default" not in loss_keys:
                     for k in val_keys:
                         assert (
@@ -1140,9 +1103,7 @@ def print_model_summary(model: torch.nn.Module, log_dir: str = ""):
     logging.info(f"Summary for model {type(model)}")
     logging.info(f"Model is {model}")
     logging.info(f"\tTotal parameters {get_human_readable_count(total_parameters)}")
-    logging.info(
-        f"\tTrainable parameters {get_human_readable_count(trainable_parameters)}"
-    )
+    logging.info(f"\tTrainable parameters {get_human_readable_count(trainable_parameters)}")
     logging.info(
         f"\tNon-Trainable parameters {get_human_readable_count(non_trainable_parameters)}"
     )

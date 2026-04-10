@@ -17,7 +17,7 @@ from pycocotools.cocoeval import COCOeval
 from sam3.train.utils.distributed import is_main_process
 
 try:
-    from tidecv import datasets, TIDE
+    from tidecv import TIDE, datasets
 
     HAS_TIDE = True
 except ImportError:
@@ -63,9 +63,7 @@ class COCOevalCustom(COCOeval):
     This is a slightly modified version of the original COCO API with added support for positive split evaluation.
     """
 
-    def __init__(
-        self, cocoGt=None, cocoDt=None, iouType="segm", dt_only_positive=False
-    ):
+    def __init__(self, cocoGt=None, cocoDt=None, iouType="segm", dt_only_positive=False):
         super().__init__(cocoGt, cocoDt, iouType)
         self.dt_only_positive = dt_only_positive
 
@@ -83,12 +81,8 @@ class COCOevalCustom(COCOeval):
 
         p = self.params
         if p.useCats:
-            gts = self.cocoGt.loadAnns(
-                self.cocoGt.getAnnIds(imgIds=p.imgIds, catIds=p.catIds)
-            )
-            dts = self.cocoDt.loadAnns(
-                self.cocoDt.getAnnIds(imgIds=p.imgIds, catIds=p.catIds)
-            )
+            gts = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=p.imgIds, catIds=p.catIds))
+            dts = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=p.imgIds, catIds=p.catIds))
         else:
             gts = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=p.imgIds))
             dts = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=p.imgIds))
@@ -113,10 +107,7 @@ class COCOevalCustom(COCOeval):
 
         #### BEGIN MODIFICATION ####
         for dt in dts:
-            if (
-                self.dt_only_positive
-                and dt["category_id"] not in _gts_cat_ids[dt["image_id"]]
-            ):
+            if self.dt_only_positive and dt["category_id"] not in _gts_cat_ids[dt["image_id"]]:
                 continue
             self._dts[dt["image_id"], dt["category_id"]].append(dt)
         #### END MODIFICATION ####

@@ -38,7 +38,7 @@ class COCO(_BaseDataset):
         self.output_sub_fol = self.config["OUTPUT_SUB_FOLDER"]
 
         if self.gt_fol.endswith(".json"):
-            self.gt_data = json.load(open(self.gt_fol, "r"))
+            self.gt_data = json.load(open(self.gt_fol))
         else:
             gt_dir_files = [
                 file for file in os.listdir(self.gt_fol) if file.endswith(".json")
@@ -81,13 +81,11 @@ class COCO(_BaseDataset):
 
         # Get classes to eval
         considered_vid_ids = [self.seq_name2seqid[vid] for vid in self.seq_list]
-        seen_cats = set(
-            [
+        seen_cats = {
                 cat_id
                 for vid_id in considered_vid_ids
                 for cat_id in self.seq2cls[vid_id]["pos_cat_ids"]
-            ]
-        )
+        }
         # only classes with ground truth are evaluated in TAO
         self.valid_classes = [
             cls["name"] for cls in self.gt_data["categories"] if cls["id"] in seen_cats
@@ -317,7 +315,7 @@ class COCO(_BaseDataset):
                 all_gt_ids = list(assignment[t].keys())
                 gt_ids_in = raw_data["gt_ids"][t][gt_class_mask]
                 gt_ids_out = set(all_gt_ids) - set(gt_ids_in)
-                tk_ids_out = set([assignment[t][key] for key in list(gt_ids_out)])
+                tk_ids_out = {assignment[t][key] for key in list(gt_ids_out)}
 
             # compute overlapped tracks and add their ids to overlap_tk_ids
             sim_scores = raw_data["similarity_scores"]
@@ -413,7 +411,7 @@ class COCO(_BaseDataset):
         # re-label IDs such that there are no empty IDs
         if len(unique_gt_ids) > 0:
             unique_gt_ids = np.unique(unique_gt_ids)
-            gt_id_map = np.nan * np.ones((np.max(unique_gt_ids) + 1))
+            gt_id_map = np.nan * np.ones(np.max(unique_gt_ids) + 1)
             gt_id_map[unique_gt_ids] = np.arange(len(unique_gt_ids))
             data["gt_id_map"] = {}
             for gt_id in unique_gt_ids:
@@ -426,7 +424,7 @@ class COCO(_BaseDataset):
 
         if len(unique_tk_ids) > 0:
             unique_tk_ids = np.unique(unique_tk_ids)
-            tk_id_map = np.nan * np.ones((np.max(unique_tk_ids) + 1))
+            tk_id_map = np.nan * np.ones(np.max(unique_tk_ids) + 1)
             tk_id_map[unique_tk_ids] = np.arange(len(unique_tk_ids))
 
             data["tk_id_map"] = {}

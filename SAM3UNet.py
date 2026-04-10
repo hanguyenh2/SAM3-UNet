@@ -77,7 +77,7 @@ class Up(nn.Module):
 
 class Adapter(nn.Module):
     def __init__(self, blk) -> None:
-        super(Adapter, self).__init__()
+        super().__init__()
         self.block = blk
         dim = blk.attn.qkv.in_features
         self.prompt_learn = nn.Sequential(
@@ -109,7 +109,7 @@ def _create_vit_backbone(img_size):
     return ViT(
         #   img_size=1008,
         img_size=img_size,
-        pretrain_img_size=1344,
+        pretrain_img_size=336,
         patch_size=14,
         embed_dim=1024,
         depth=32,
@@ -137,8 +137,8 @@ def _create_vit_backbone(img_size):
 
 
 class SAM3UNet(nn.Module):
-    def __init__(self, checkpoint_path=None, img_size=1344) -> None:
-        super(SAM3UNet, self).__init__()
+    def __init__(self, checkpoint_path=None, img_size=336) -> None:
+        super().__init__()
         self.sam3_vit = _create_vit_backbone(img_size)
         if checkpoint_path:
             ckpt = torch.load(checkpoint_path)
@@ -146,44 +146,6 @@ class SAM3UNet(nn.Module):
             for k, v in ckpt.items():
                 if "detector.backbone.vision_backbone.trunk" in k and "freqs_cis" not in k:
                     new_ckpt[k[len("detector.backbone.vision_backbone.trunk.") :]] = v
-
-            if "pos_embed" in new_ckpt:
-                pos_embed_checkpoint = new_ckpt["pos_embed"]
-                embedding_size = pos_embed_checkpoint.shape[-1]  # 1024
-                num_extra_tokens = 1  # Usually 1 for the class token
-
-                # Calculate grid sizes
-                # Old grid: sqrt(577 - 1) = 24
-                # New grid: sqrt(2305 - 1) = 48
-                old_grid_size = int((pos_embed_checkpoint.shape[1] - num_extra_tokens) ** 0.5)
-                new_grid_size = int((self.sam3_vit.pos_embed.shape[1] - num_extra_tokens) ** 0.5)
-
-                if old_grid_size != new_grid_size:
-                    print(f"Interpolating pos_embed from {old_grid_size} to {new_grid_size}")
-
-                    # Separate tokens and grid
-                    extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
-                    grid_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
-
-                    # Reshape to (1, C, H, W) for interpolation
-                    grid_tokens = grid_tokens.reshape(
-                        1, old_grid_size, old_grid_size, embedding_size
-                    ).permute(0, 3, 1, 2)
-
-                    # Interpolate
-                    grid_tokens = F.interpolate(
-                        grid_tokens,
-                        size=(new_grid_size, new_grid_size),
-                        mode="bicubic",
-                        align_corners=False,
-                    )
-
-                    # Reshape back to (1, L, C)
-                    grid_tokens = grid_tokens.permute(0, 2, 3, 1).reshape(1, -1, embedding_size)
-
-                    # Concatenate back
-                    new_ckpt["pos_embed"] = torch.cat((extra_tokens, grid_tokens), dim=1)
-
             self.sam3_vit.load_state_dict(new_ckpt, strict=False)
         for param in self.sam3_vit.parameters():
             param.requires_grad = False
@@ -220,6 +182,6 @@ class SAM3UNet(nn.Module):
 if __name__ == "__main__":
     model = SAM3UNet().cuda().eval()
     with torch.no_grad():
-        x = torch.randn(1, 3, 1344, 1344).cuda()
+        x = torch.randn(1, 3, 336, 336).cuda()
         out = model(x)
         print(out.shape)

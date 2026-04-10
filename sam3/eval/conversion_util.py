@@ -138,8 +138,7 @@ def convert_ytbvis_to_cocovid_pred(
 
     # Create (video_id, frame_idx) -> image_id mapping
     image_id_map = {
-        (img["video_id"], img["frame_index"]): img["id"]
-        for img in coco_dataset["images"]
+        (img["video_id"], img["frame_index"]): img["id"] for img in coco_dataset["images"]
     }
 
     coco_annotations = []

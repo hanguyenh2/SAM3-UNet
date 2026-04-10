@@ -8,7 +8,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 def reindex_coco_to_temp(input_json_path: str) -> Optional[str]:
@@ -116,16 +116,14 @@ def reindex_coco_to_temp(input_json_path: str) -> Optional[str]:
 
     # Load and validate JSON data
     try:
-        with open(input_json_path, "r", encoding="utf-8") as f:
+        with open(input_json_path, encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
         raise json.JSONDecodeError(f"Invalid JSON in {input_json_path}: {e}")
 
     # Validate COCO format
     if not is_coco_json(data):
-        raise ValueError(
-            f"File does not appear to be in COCO format: {input_json_path}"
-        )
+        raise ValueError(f"File does not appear to be in COCO format: {input_json_path}")
 
     # Check if reindexing is needed
     annotations_zero, images_zero, categories_zero = check_zero_indexed(data)
@@ -205,7 +203,7 @@ def test_reindex_function():
         print(f"Converted file: {result_path}")
 
         # Load and display the result
-        with open(result_path, "r") as f:
+        with open(result_path) as f:
             result_data = json.load(f)
 
         print("\nConverted data sample:")
@@ -213,9 +211,7 @@ def test_reindex_function():
         print(f"First category ID: {result_data['categories'][0]['id']}")
         print(f"First annotation ID: {result_data['annotations'][0]['id']}")
         print(f"First annotation image_id: {result_data['annotations'][0]['image_id']}")
-        print(
-            f"First annotation category_id: {result_data['annotations'][0]['category_id']}"
-        )
+        print(f"First annotation category_id: {result_data['annotations'][0]['category_id']}")
 
         # Clean up
         os.unlink(result_path)

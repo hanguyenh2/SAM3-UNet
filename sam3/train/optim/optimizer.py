@@ -4,7 +4,6 @@ import fnmatch
 import inspect
 import itertools
 import logging
-import types
 from typing import (
     Any,
     Callable,
@@ -20,7 +19,6 @@ from typing import (
 )
 
 import hydra
-
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
@@ -54,8 +52,7 @@ class Optimizer:
                     new_value = scheduler(step=step, where=where)
                 elif (
                     hasattr(scheduler, "scheduler")
-                    and "step"
-                    in inspect.signature(scheduler.scheduler.__call__).parameters
+                    and "step" in inspect.signature(scheduler.scheduler.__call__).parameters
                 ):
                     # To handle ValueScaler wrappers
                     new_value = scheduler(step=step, where=where)
@@ -147,12 +144,8 @@ def map_scheduler_cfgs_to_param_groups(
     schedulers = []
     param_groups = []
     for scheduler_cfgs in scheduler_cfgs_per_param_group:
-        param_constraints = [
-            scheduler_cfg["parameter_names"] for scheduler_cfg in scheduler_cfgs
-        ]
-        matching_parameters = name_constraints_to_parameters(
-            param_constraints, named_parameters
-        )
+        param_constraints = [scheduler_cfg["parameter_names"] for scheduler_cfg in scheduler_cfgs]
+        matching_parameters = name_constraints_to_parameters(param_constraints, named_parameters)
         if len(matching_parameters) == 0:  # If no overlap of parameters, skip
             continue
         schedulers_for_group = {
@@ -206,16 +199,13 @@ def unix_module_cls_pattern_to_parameter_names(
         module_cls = hydra.utils.get_class(module_cls_name)
         if module_cls not in module_cls_to_param_names:
             raise AssertionError(
-                f"module_cls_name {module_cls_name} does not "
-                "match any classes in the model"
+                f"module_cls_name {module_cls_name} does not " "match any classes in the model"
             )
         matching_parameters = module_cls_to_param_names[module_cls]
         assert (
             len(matching_parameters) > 0
         ), f"module_cls_name {module_cls_name} does not contain any parameters in the model"
-        logging.info(
-            f"Matches for module_cls_name [{module_cls_name}]: {matching_parameters} "
-        )
+        logging.info(f"Matches for module_cls_name [{module_cls_name}]: {matching_parameters} ")
         allowed_parameter_names.append(matching_parameters)
     return set.union(*allowed_parameter_names)
 
@@ -325,21 +315,15 @@ def construct_optimizer(
         param_allowlist = {name for name, _ in model.named_parameters()}
 
     named_parameters = {
-        name: param
-        for name, param in model.named_parameters()
-        if name in param_allowlist
+        name: param for name, param in model.named_parameters() if name in param_allowlist
     }
 
     if not options_conf:
         optimizer = hydra.utils.instantiate(optimizer_conf, named_parameters.values())
         return Optimizer(optimizer)
 
-    all_parameter_names = {
-        name for name, _ in model.named_parameters() if name in param_allowlist
-    }
-    module_cls_to_all_param_names = get_module_cls_to_param_names(
-        model, param_allowlist
-    )
+    all_parameter_names = {name for name, _ in model.named_parameters() if name in param_allowlist}
+    module_cls_to_all_param_names = get_module_cls_to_param_names(model, param_allowlist)
 
     scheduler_cfgs_per_option = hydra.utils.instantiate(options_conf)
     all_scheduler_cfgs = []
@@ -444,9 +428,7 @@ def layer_decay_param_modifier(
     """
     model = rgetattr(model, apply_to)
     num_layers = model.get_num_layers() + 1
-    layer_decays = [
-        layer_decay_value ** (num_layers - i) for i in range(num_layers + 1)
-    ]
+    layer_decays = [layer_decay_value ** (num_layers - i) for i in range(num_layers + 1)]
     if layer_decay_min is not None:
         layer_decays = [max(val, layer_decay_min) for val in layer_decays]
     final_scheduler_cfgs = []
@@ -481,9 +463,7 @@ def layer_decay_param_modifier(
                 if layer_id not in layer_cfg_groups:
                     curr_param = {
                         "option": scheduler_cfg["option"],
-                        "scheduler": ValueScaler(
-                            scheduler_cfg["scheduler"], this_scale
-                        ),
+                        "scheduler": ValueScaler(scheduler_cfg["scheduler"], this_scale),
                         "parameter_names": {param_name},
                     }
                 else:

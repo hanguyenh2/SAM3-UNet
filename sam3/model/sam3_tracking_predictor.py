@@ -4,8 +4,7 @@ import logging
 from collections import OrderedDict
 
 import torch
-
-from sam3.model.sam3_tracker_base import concat_points, NO_OBJ_SCORE, Sam3TrackerBase
+from sam3.model.sam3_tracker_base import NO_OBJ_SCORE, Sam3TrackerBase, concat_points
 from sam3.model.sam3_tracker_utils import fill_holes_in_mask_scores
 from sam3.model.utils.sam2_utils import load_video_frames
 from tqdm.auto import tqdm
@@ -101,9 +100,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
         inference_state["point_inputs_per_obj"] = {}
         inference_state["mask_inputs_per_obj"] = {}
         # visual features on a small number of recently visited frames for quick interactions
-        inference_state["cached_features"] = (
-            {} if cached_features is None else cached_features
-        )
+        inference_state["cached_features"] = {} if cached_features is None else cached_features
         # values that don't change across frames (so we only need to hold one copy of them)
         inference_state["constants"] = {}
         # mapping between client-side object id and model-side object index
@@ -483,9 +480,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
             video_res_masks = self._apply_non_overlapping_constraints(video_res_masks)
         # potentially fill holes in the predicted masks
         if self.fill_hole_area > 0:
-            video_res_masks = fill_holes_in_mask_scores(
-                video_res_masks, self.fill_hole_area
-            )
+            video_res_masks = fill_holes_in_mask_scores(video_res_masks, self.fill_hole_area)
         return any_res_masks, video_res_masks
 
     def _consolidate_temp_output_across_obj(
@@ -575,9 +570,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                 # i.e. when we need to build the memory for tracking).
                 if run_mem_encoder:
                     if empty_mask_ptr is None:
-                        empty_mask_ptr = self._get_empty_mask_ptr(
-                            inference_state, frame_idx
-                        )
+                        empty_mask_ptr = self._get_empty_mask_ptr(inference_state, frame_idx)
                     # fill object pointer with a dummy pointer (based on an empty mask)
                     consolidated_out["obj_ptr"][obj_idx : obj_idx + 1] = empty_mask_ptr
                 continue
@@ -742,15 +735,10 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
         assert all_consolidated_frame_inds == input_frames_inds
         # Record the first interacted frame index (for tracking start)
         if inference_state["first_ann_frame_idx"] is None:
-            inference_state["first_ann_frame_idx"] = min(
-                input_frames_inds, default=None
-            )
+            inference_state["first_ann_frame_idx"] = min(input_frames_inds, default=None)
         # In case `first_ann_frame_idx` is not in the conditioning frames (e.g. because
         # we cleared the input points on that frame), pick the first conditioning frame
-        if (
-            inference_state["first_ann_frame_idx"]
-            not in output_dict["cond_frame_outputs"]
-        ):
+        if inference_state["first_ann_frame_idx"] not in output_dict["cond_frame_outputs"]:
             inference_state["first_ann_frame_idx"] = min(
                 output_dict["cond_frame_outputs"], default=None
             )
@@ -779,9 +767,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                 # in this case, we track a single frame (frame 0)
                 processing_order = [0]
         else:
-            end_frame_idx = min(
-                start_frame_idx + max_frame_num_to_track, num_frames - 1
-            )
+            end_frame_idx = min(start_frame_idx + max_frame_num_to_track, num_frames - 1)
             processing_order = range(start_frame_idx, end_frame_idx + 1)
         return processing_order
 
@@ -822,9 +808,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
             reverse,
         )
 
-        for frame_idx in tqdm(
-            processing_order, desc="propagate in video", disable=tqdm_disable
-        ):
+        for frame_idx in tqdm(processing_order, desc="propagate in video", disable=tqdm_disable):
             # We skip those frames already in consolidated outputs (these are frames
             # that received input clicks or mask). Note that we cannot directly run
             # batched forward on them via `_run_single_frame_inference` because the
@@ -859,9 +843,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                 output_dict[storage_key][frame_idx] = current_out
             # Create slices of per-object outputs for subsequent interaction with each
             # individual object after tracking.
-            self._add_output_per_object(
-                inference_state, frame_idx, current_out, storage_key
-            )
+            self._add_output_per_object(inference_state, frame_idx, current_out, storage_key)
             inference_state["frames_already_tracked"][frame_idx] = {"reverse": reverse}
 
             # Resize the output mask to the original video resolution (we directly use
@@ -871,9 +853,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
             )
             yield frame_idx, obj_ids, low_res_masks, video_res_masks, obj_scores
 
-    def _add_output_per_object(
-        self, inference_state, frame_idx, current_out, storage_key
-    ):
+    def _add_output_per_object(self, inference_state, frame_idx, current_out, storage_key):
         """
         Split a multi-object output into per-object output slices and add them into
         `output_dict_per_obj`. The resulting slices share the same tensor storage.
@@ -903,9 +883,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
             obj_output_dict[storage_key][frame_idx] = obj_out
 
     @torch.inference_mode()
-    def clear_all_points_in_frame(
-        self, inference_state, frame_idx, obj_id, need_output=True
-    ):
+    def clear_all_points_in_frame(self, inference_state, frame_idx, obj_id, need_output=True):
         """Remove all input points or mask in a specific frame for a given object."""
         obj_idx = self._obj_id_to_idx(inference_state, obj_id)
 
@@ -1010,9 +988,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
     def _get_image_feature(self, inference_state, frame_idx, batch_size):
         """Compute the image features on a given frame."""
         # Look up in the cache
-        image, backbone_out = inference_state["cached_features"].get(
-            frame_idx, (None, None)
-        )
+        image, backbone_out = inference_state["cached_features"].get(frame_idx, (None, None))
         if backbone_out is None:
             if self.backbone is None:
                 raise RuntimeError(
@@ -1170,9 +1146,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
                 maskmem_pos_enc = model_constants["maskmem_pos_enc"]
             # expand the cached maskmem_pos_enc to the actual batch size
             batch_size = out_maskmem_pos_enc[0].size(0)
-            expanded_maskmem_pos_enc = [
-                x.expand(batch_size, -1, -1, -1) for x in maskmem_pos_enc
-            ]
+            expanded_maskmem_pos_enc = [x.expand(batch_size, -1, -1, -1) for x in maskmem_pos_enc]
         else:
             expanded_maskmem_pos_enc = None
         return expanded_maskmem_pos_enc
@@ -1205,16 +1179,10 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
         # (note that this step is required as it might downgrade conditioning frames to
         # non-conditioning ones)
         obj_input_frames_inds = set()
-        obj_input_frames_inds.update(
-            inference_state["point_inputs_per_obj"][old_obj_idx_to_rm]
-        )
-        obj_input_frames_inds.update(
-            inference_state["mask_inputs_per_obj"][old_obj_idx_to_rm]
-        )
+        obj_input_frames_inds.update(inference_state["point_inputs_per_obj"][old_obj_idx_to_rm])
+        obj_input_frames_inds.update(inference_state["mask_inputs_per_obj"][old_obj_idx_to_rm])
         for frame_idx in obj_input_frames_inds:
-            self.clear_all_points_in_frame(
-                inference_state, frame_idx, obj_id, need_output=False
-            )
+            self.clear_all_points_in_frame(inference_state, frame_idx, obj_id, need_output=False)
 
         # Step 1: Update the object id mapping (note that it must be done after Step 0,
         # since Step 0 still requires the old object id mappings in inference_state)
@@ -1250,25 +1218,19 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
         def _slice_state(output_dict, storage_key):
             for frame_idx, out in output_dict[storage_key].items():
                 out["maskmem_features"] = out["maskmem_features"][remain_old_obj_inds]
-                out["maskmem_pos_enc"] = [
-                    x[remain_old_obj_inds] for x in out["maskmem_pos_enc"]
-                ]
+                out["maskmem_pos_enc"] = [x[remain_old_obj_inds] for x in out["maskmem_pos_enc"]]
                 # "maskmem_pos_enc" is the same across frames, so we only need to store one copy of it
                 out["maskmem_pos_enc"] = self._get_maskmem_pos_enc(inference_state, out)
                 out["pred_masks"] = out["pred_masks"][remain_old_obj_inds]
                 out["obj_ptr"] = out["obj_ptr"][remain_old_obj_inds]
-                out["object_score_logits"] = out["object_score_logits"][
-                    remain_old_obj_inds
-                ]
+                out["object_score_logits"] = out["object_score_logits"][remain_old_obj_inds]
                 if self.use_memory_selection:
                     out["iou_score"] = out["iou_score"][remain_old_obj_inds]
                     out["eff_iou_score"] = self.cal_mem_score(
                         out["object_score_logits"], out["iou_score"]
                     )  # recalculate the memory frame score
                 # also update the per-object slices
-                self._add_output_per_object(
-                    inference_state, frame_idx, out, storage_key
-                )
+                self._add_output_per_object(inference_state, frame_idx, out, storage_key)
 
         _slice_state(inference_state["output_dict"], "cond_frame_outputs")
         _slice_state(inference_state["output_dict"], "non_cond_frame_outputs")
@@ -1315,18 +1277,14 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
             for t in range(frame_idx_begin, frame_idx_end + 1):
                 non_cond_frame_outputs.pop(t, None)
 
-    def _suppress_shrinked_masks(
-        self, pred_masks, new_pred_masks, shrink_threshold=0.3
-    ):
+    def _suppress_shrinked_masks(self, pred_masks, new_pred_masks, shrink_threshold=0.3):
         area_before = (pred_masks > 0).sum(dim=(-1, -2))
         area_after = (new_pred_masks > 0).sum(dim=(-1, -2))
         area_before = torch.clamp(area_before, min=1.0)
         area_ratio = area_after / area_before
         keep = area_ratio >= shrink_threshold
         keep_mask = keep[..., None, None].expand_as(pred_masks)
-        pred_masks_after = torch.where(
-            keep_mask, pred_masks, torch.clamp(pred_masks, max=-10.0)
-        )
+        pred_masks_after = torch.where(keep_mask, pred_masks, torch.clamp(pred_masks, max=-10.0))
         return pred_masks_after
 
     def _suppress_object_pw_area_shrinkage(self, pred_masks):
@@ -1335,14 +1293,10 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
         Note that the final output can still be overlapping.
         """
         # Apply pixel-wise non-overlapping constraint based on mask scores
-        pixel_level_non_overlapping_masks = super()._apply_non_overlapping_constraints(
-            pred_masks
-        )
+        pixel_level_non_overlapping_masks = super()._apply_non_overlapping_constraints(pred_masks)
         # Fully suppress masks with high shrinkage (probably noisy) based on the pixel wise non-overlapping constraints
         # NOTE: The output of this function can be a no op if none of the masks shrinked by a large factor.
-        pred_masks = self._suppress_shrinked_masks(
-            pred_masks, pixel_level_non_overlapping_masks
-        )
+        pred_masks = self._suppress_shrinked_masks(pred_masks, pixel_level_non_overlapping_masks)
         return pred_masks
 
     def _apply_object_wise_non_overlapping_constraints(

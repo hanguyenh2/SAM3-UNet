@@ -26,7 +26,7 @@ def parse_configs():
     args = parser.parse_args().__dict__
     for setting in args.keys():
         if args[setting] is not None:
-            if type(config[setting]) == type(True):
+            if type(config[setting]) == bool:
                 if args[setting] == "True":
                     x = True
                 elif args[setting] == "False":
@@ -35,7 +35,7 @@ def parse_configs():
                     raise Exception(
                         f"Command line parameter {setting} must be True/False"
                     )
-            elif type(config[setting]) == type(1):
+            elif type(config[setting]) == int:
                 x = int(args[setting])
             elif type(args[setting]) == type(None):
                 x = None
@@ -129,7 +129,7 @@ def update_config(config):
     args = parser.parse_args().__dict__
     for setting in args.keys():
         if args[setting] is not None:
-            if type(config[setting]) == type(True):
+            if type(config[setting]) == bool:
                 if args[setting] == "True":
                     x = True
                 elif args[setting] == "False":
@@ -138,7 +138,7 @@ def update_config(config):
                     raise Exception(
                         "Command line parameter " + setting + "must be True or False"
                     )
-            elif type(config[setting]) == type(1):
+            elif type(config[setting]) == int:
                 x = int(args[setting])
             elif type(args[setting]) == type(None):
                 x = None

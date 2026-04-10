@@ -52,21 +52,19 @@ def compute_axial_cis(
     t_x, t_y = init_t_xy(end_x, end_y, scale_pos, offset)
     freqs_x = torch.outer(t_x, freqs_x)
     freqs_y = torch.outer(t_y, freqs_y)
-
-    # FIX: Instead of torch.polar, we store cos and sin in the last dimension (size 2)
-    # This makes the tensor shape [L, dim//2, 2] instead of a complex tensor
-    freqs_cis_x = torch.stack([torch.cos(freqs_x), torch.sin(freqs_x)], dim=-1)
-    freqs_cis_y = torch.stack([torch.cos(freqs_y), torch.sin(freqs_y)], dim=-1)
-
-    return torch.cat([freqs_cis_x, freqs_cis_y], dim=-2)  # Concatenate on the frequency dim
+    freqs_cis_x = torch.polar(torch.ones_like(freqs_x), freqs_x)
+    freqs_cis_y = torch.polar(torch.ones_like(freqs_y), freqs_y)
+    return torch.cat([freqs_cis_x, freqs_cis_y], dim=-1)
 
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     ndim = x.ndim
     assert 0 <= 1 < ndim
-    # freqs_cis now has shape [L, D, 2]
-    assert freqs_cis.shape[:2] == (x.shape[-3], x.shape[-2])
-    shape = [d if i >= ndim - 3 else 1 for i, d in enumerate(x.shape)]
+    assert freqs_cis.shape == (
+        x.shape[-2],
+        x.shape[-1],
+    ), f"freqs_cis.shape={freqs_cis.shape}, (x.shape[-2], x.shape[-1])=({x.shape[-2]}, {x.shape[-1]})"
+    shape = [d if i >= ndim - 2 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(*shape)
 
 
@@ -76,33 +74,53 @@ def apply_rotary_enc(
     freqs_cis: torch.Tensor,
     repeat_freqs_k: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    # xq shape: [B, nHead, L, D] -> Reshape to [B, nHead, L, D//2, 2]
-    xq_ = xq.float().reshape(*xq.shape[:-1], -1, 2)
-    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 2) if xk.shape[-2] != 0 else None
-
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)  # Shape: [1, 1, L, D//2, 2]
-
-    # Real-number rotation logic:
-    # (x_r + x_i*i) * (f_r + f_i*i) = (x_r*f_r - x_i*f_i) + (x_r*f_i + x_i*f_r)i
-    def rotate(x, f):
-        x_r, x_i = x[..., 0], x[..., 1]
-        f_r, f_i = f[..., 0], f[..., 1]
-        out_r = x_r * f_r - x_i * f_i
-        out_i = x_r * f_i + x_i * f_r
-        return torch.stack([out_r, out_i], dim=-1).flatten(3)
-
-    xq_out = rotate(xq_, freqs_cis)
-
+    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
+    xk_ = (
+        torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+        if xk.shape[-2] != 0
+        else None
+    )
+    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     if xk_ is None:
-        return xq_out.type_as(xq), xk
-
+        # no keys to rotate, due to dropout
+        return xq_out.type_as(xq).to(xq.device), xk
+    # repeat freqs along seq_len dim to match k seq_len
     if repeat_freqs_k:
-        r = xk_.shape[-3] // xq_.shape[-3]
-        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 3)), r, 1, 1)
+        r = xk_.shape[-2] // xq_.shape[-2]
+        freqs_cis = freqs_cis.repeat(*([1] * (freqs_cis.ndim - 2)), r, 1)
+    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+    return xq_out.type_as(xq).to(xq.device), xk_out.type_as(xk).to(xk.device)
 
-    xk_out = rotate(xk_, freqs_cis)
 
-    return xq_out.type_as(xq), xk_out.type_as(xk)
+def apply_rotary_enc2(
+    xq: torch.Tensor,
+    xk: torch.Tensor,
+    freqs_cos: torch.Tensor,
+    freqs_sin: torch.Tensor,
+    repeat_freqs_k: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    # return xq, xk
+
+    xq_reshaped = xq.view(*xq.shape[:-1], -1, 2)
+    xq_cos = xq_reshaped[..., 0]
+    xq_sin = xq_reshaped[..., 1]
+
+    xk_reshaped = xk.view(*xk.shape[:-1], -1, 2)
+    xk_cos = xk_reshaped[..., 0]
+    xk_sin = xk_reshaped[..., 1]
+
+    freqs_cos = freqs_cos[None, None]
+    freqs_sin = freqs_sin[None, None]
+
+    xq_out = torch.stack(
+        [xq_cos * freqs_cos - xq_sin * freqs_sin, xq_cos * freqs_sin + xq_sin * freqs_cos], dim=-1
+    ).flatten(3)
+    xk_out = torch.stack(
+        [xk_cos * freqs_cos - xk_sin * freqs_sin, xk_cos * freqs_sin + xk_sin * freqs_cos], dim=-1
+    ).flatten(3)
+
+    return xq_out, xk_out
 
 
 def window_partition(x: Tensor, window_size: int) -> Tuple[Tensor, Tuple[int, int]]:
@@ -453,11 +471,12 @@ class Attention(nn.Module):
             scale_pos=scale_pos,
         )
         if self.cls_token:
-            # Create a [1, D//2, 2] tensor for the class token (no rotation)
-            cls_freqs_cis = torch.zeros(
-                1, self.head_dim // 2, 2, dtype=torch.float32, device=freqs_cis.device
+            t = torch.zeros(
+                self.head_dim // 2,
+                dtype=torch.float32,
+                device=freqs_cis.device,
             )
-            cls_freqs_cis[..., 0] = 1.0  # Cosine(0) = 1, Sine(0) = 0
+            cls_freqs_cis = torch.polar(torch.ones_like(t), t)[None, :]
             freqs_cis = torch.cat([cls_freqs_cis, freqs_cis], dim=0)
 
         self.register_buffer("freqs_cis", freqs_cis)
@@ -466,8 +485,15 @@ class Attention(nn.Module):
         if not self.use_rope:
             return q, k
 
-        assert self.freqs_cis is not None
-        return apply_rotary_enc(q, k, freqs_cis=self.freqs_cis)
+        if hasattr(self, "freqs_cis"):
+            assert self.freqs_cis is not None
+            return apply_rotary_enc(q, k, freqs_cis=self.freqs_cis)
+        else:
+            # XXX: onnx/infer_torch.py replaces freqs_cis with freqs_{cos,sin} because
+            # onnx export doesn't work well with complex numbers
+            assert self.freqs_cos is not None
+            assert self.freqs_sin is not None
+            return apply_rotary_enc2(q, k, freqs_cos=self.freqs_cos, freqs_sin=self.freqs_sin)
 
     def forward(self, x: Tensor) -> Tensor:
         s = 1 if self.cls_token else 0  # used to exclude cls_token

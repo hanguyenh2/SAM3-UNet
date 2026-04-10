@@ -71,9 +71,7 @@ def associate_det_trk(
         igeit_trk_list = igeit_trk.cpu().numpy().tolist()
 
         det_scores_list = (
-            det_scores
-            if det_scores is None
-            else det_scores.cpu().float().numpy().tolist()
+            det_scores if det_scores is None else det_scores.cpu().float().numpy().tolist()
         )
 
         # Hungarian matching for tracks (one-to-one: each track matches at most one detection)
@@ -92,7 +90,9 @@ def associate_det_trk(
         ):
             matched_trk = set()
             matched_det = set()
-            matched_det_scores = {}  # track index -> [det_score, det_score * iou] det score of matched detection mask
+            matched_det_scores = (
+                {}
+            )  # track index -> [det_score, det_score * iou] det score of matched detection mask
             for d, t in zip(row_ind, col_ind):
                 matched_det_scores[t] = [
                     det_scores_list[d],
@@ -103,15 +103,11 @@ def associate_det_trk(
                     matched_det.add(d)
 
             # Tracks not matched by Hungarian assignment above threshold are unmatched
-            unmatched_trk_indices = [
-                t for t in range(track_masks.size(0)) if t not in matched_trk
-            ]
+            unmatched_trk_indices = [t for t in range(track_masks.size(0)) if t not in matched_trk]
 
             # For detections: allow many tracks to match to the same detection (many-to-one)
             # So, a detection is 'new' if it does not match any track above threshold
-            assert track_masks.size(0) == igeit.size(
-                1
-            )  # Needed for loop optimizaiton below
+            assert track_masks.size(0) == igeit.size(1)  # Needed for loop optimizaiton below
             new_det_indices = []
             for d in range(det_masks.size(0)):
                 if not igeit_any_dim_1_list[d]:

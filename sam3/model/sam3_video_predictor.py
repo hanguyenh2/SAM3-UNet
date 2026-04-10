@@ -14,7 +14,6 @@ from typing import List, Optional
 
 import psutil
 import torch
-
 from sam3.logger import get_logger
 
 logger = get_logger(__name__)
@@ -167,9 +166,7 @@ class Sam3VideoPredictor:
         is_user_action: bool = True,
     ):
         """Remove an object from tracking."""
-        logger.debug(
-            f"remove object {obj_id} in session {session_id}: " f"{is_user_action=}"
-        )
+        logger.debug(f"remove object {obj_id} in session {session_id}: " f"{is_user_action=}")
         session = self._get_session(session_id)
         inference_state = session["state"]
 
@@ -196,9 +193,7 @@ class Sam3VideoPredictor:
             session = self._get_session(session_id)
             inference_state = session["state"]
             if propagation_direction not in ["both", "forward", "backward"]:
-                raise ValueError(
-                    f"invalid propagation direction: {propagation_direction}"
-                )
+                raise ValueError(f"invalid propagation direction: {propagation_direction}")
 
             # First doing the forward propagation
             if propagation_direction in ["both", "forward"]:
@@ -221,9 +216,7 @@ class Sam3VideoPredictor:
         finally:
             # Log upon completion (so that e.g. we can see if two propagations happen in parallel).
             # Using `finally` here to log even when the tracking is aborted with GeneratorExit.
-            logger.debug(
-                f"propagation ended in session {session_id}; {self._get_session_stats()}"
-            )
+            logger.debug(f"propagation ended in session {session_id}; {self._get_session_stats()}")
 
     def reset_session(self, session_id):
         """Reset the session to its initial state (as when it's initial opened)."""
@@ -253,9 +246,7 @@ class Sam3VideoPredictor:
     def _get_session(self, session_id):
         session = self._ALL_INFERENCE_STATES.get(session_id, None)
         if session is None:
-            raise RuntimeError(
-                f"Cannot find session {session_id}; it might have expired"
-            )
+            raise RuntimeError(f"Cannot find session {session_id}; it might have expired")
         return session
 
     def _get_session_stats(self):
@@ -499,9 +490,7 @@ class Sam3VideoPredictorMultiGPU(Sam3VideoPredictor):
                 # to clean up its daemon child processes. So here we manually check whether the
                 # parent process still exists (every 5 sec as in `command_queue.get` timeout).
                 if not psutil.pid_exists(parent_pid):
-                    logger.info(
-                        f"stopping worker {rank=} as its parent process has exited"
-                    )
+                    logger.info(f"stopping worker {rank=} as its parent process has exited")
                     sys.exit(1)
             except Exception as e:
                 logger.error(f"worker {rank=} exception: {e}", exc_info=True)

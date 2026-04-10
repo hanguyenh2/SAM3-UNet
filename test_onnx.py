@@ -257,6 +257,7 @@ if __name__ == "__main__":
         default="/data1/workspace/ai_shared_workspace/train_data/wall_seg_crop/data_test/masks/",
         help="path to the mask files for testing",
     )
+    parser.add_argument("--size", default=960, type=int)
     parser.add_argument(
         "--use_cpu", action="store_true", default=False, help="inference using CPU"
     )
@@ -278,7 +279,7 @@ if __name__ == "__main__":
     # 2. Load model
     segmentor = SamUnetBaseSegmenter(
         model_path=args.checkpoint,
-        input_size=1344,
+        input_size=args.size,
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225],
         score_threshold=0.1,
@@ -288,19 +289,17 @@ if __name__ == "__main__":
     # Get info for next step
     image_root = args.test_image_path
     gt_root = args.test_gt_path
-    gt_list = sorted(os.listdir(gt_root))
+    image_list = sorted(os.listdir(image_root))
     results = []
     test_time = []
     os.makedirs(args.save_path, exist_ok=True)
     log_path = os.path.join(args.save_path, "log.txt")
     # 3. Segment each image
-    len_gt_list = len(gt_list)
-    for i, file_name in enumerate(gt_list):
-        # 2.1. Get image and gt path
-        gt_path = os.path.join(gt_root, file_name)
-        image_path = os.path.join(image_root, file_name[:-4] + ".png")
+    len_image_list = len(image_list)
+    for i, file_name in enumerate(image_list):
+        # 2.1. Get image path
+        image_path = os.path.join(image_root, file_name)
         # 2.2. Read image and gt and
-        gt_mask = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
         cv2.imread(image_path)
         image = np.array(Image.open(image_path).convert("RGB"))
         # 2.3. Segment image
@@ -311,11 +310,19 @@ if __name__ == "__main__":
         # 2.4. Save result
         cv2.imwrite(os.path.join(args.save_path, file_name[:-4] + ".png"), pred_mask)
         # 2.5. Evaluate result
-        result = evaluate_segmentation_performance(pred_mask, gt_mask)
-        # 2.6. Save and print eval result
-        title = f"[{i + 1}/{len_gt_list}][{process_time:.2f}s] {file_name}"
-        print_eval_report(result, title=title, log_path=log_path)
-        results.append(result)
+        title = f"[{i + 1}/{len_image_list}][{process_time:.2f}s] {file_name}"
+        if gt_root:
+            # 2.5.1. Get gt_path
+            gt_path = os.path.join(gt_root, file_name)
+            # 2.5.2. Read gt_mask
+            gt_mask = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+            # 2.5.3. Evaluate result
+            result = evaluate_segmentation_performance(pred_mask, gt_mask)
+            # 2.5.4. Save and print eval result
+            print_eval_report(result, title=title, log_path=log_path)
+            results.append(result)
+        else:
+            print(title)
 
     # 3. Evaluate all results
     final_result = evaluate_dataset(results)

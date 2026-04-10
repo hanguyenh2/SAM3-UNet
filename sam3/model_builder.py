@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
 from iopath.common.file_io import g_pathmgr
-
 from sam3.model.decoder import (
     TransformerDecoder,
     TransformerDecoderLayer,
@@ -73,7 +72,7 @@ def _create_vit_backbone(compile_mode=None):
     """Create ViT backbone for visual feature extraction."""
     return ViT(
         img_size=1008,
-        pretrain_img_size=1344,
+        pretrain_img_size=336,
         patch_size=14,
         embed_dim=1024,
         depth=32,
@@ -236,6 +235,14 @@ def _create_geometry_encoder():
     """Create geometry encoder with all its components."""
     # Create position encoding for geometry encoder
     geo_pos_enc = _create_position_encoding()
+    # Create CX block for fuser
+    cx_block = CXBlock(
+        dim=256,
+        kernel_size=7,
+        padding=3,
+        layer_scale_init_value=1.0e-06,
+        use_dwconv=True,
+    )
     # Create geometry encoder layer
     geo_layer = TransformerEncoderLayer(
         activation="relu",

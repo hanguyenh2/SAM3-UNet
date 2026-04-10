@@ -5,15 +5,13 @@ import os
 import queue
 import re
 import time
-from threading import Condition, get_ident, Lock, Thread
+from threading import Condition, Lock, Thread, get_ident
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
-
 from PIL import Image
-
 from sam3.logger import get_logger
 from tqdm import tqdm
 
@@ -167,9 +165,7 @@ def load_video_frames_from_image_folder(
     Load the video frames from a directory of image files ("<frame_index>.<img_ext>" format)
     """
     frame_names = [
-        p
-        for p in os.listdir(image_folder)
-        if os.path.splitext(p)[-1].lower() in IMAGE_EXTS
+        p for p in os.listdir(image_folder) if os.path.splitext(p)[-1].lower() in IMAGE_EXTS
     ]
     try:
         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
@@ -442,9 +438,7 @@ class TorchCodecDecoder:
         if key < 0:
             key += self._num_frames
         if key >= self._num_frames or key < 0:
-            raise IndexError(
-                f"Index {key} is out of bounds; length is {self._num_frames}"
-            )
+            raise IndexError(f"Index {key} is out of bounds; length is {self._num_frames}")
         frame_data, *_ = core.get_frame_at_index(
             self._decoder,
             frame_index=key,
@@ -464,9 +458,7 @@ class FIFOLock:
         ident = get_ident()
         with self._condition:
             self._waiters.put(ident)
-            while self._waiters.queue[0] != ident or not self._lock.acquire(
-                blocking=False
-            ):
+            while self._waiters.queue[0] != ident or not self._lock.acquire(blocking=False):
                 self._condition.wait()
                 # got the lock and it's our turn
 

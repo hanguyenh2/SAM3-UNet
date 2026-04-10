@@ -6,9 +6,8 @@ from typing import Tuple, Type
 
 import torch
 import torch.nn.functional as F
-
 from sam3.sam.rope import apply_rotary_enc, apply_rotary_enc_real, compute_axial_cis
-from torch import nn, Tensor
+from torch import Tensor, nn
 
 from .common import MLPBlock
 
@@ -203,9 +202,7 @@ class Attention(nn.Module):
         self.internal_dim = embedding_dim // downsample_rate
         self.num_heads = num_heads
         self.use_fa3 = use_fa3
-        assert (
-            self.internal_dim % num_heads == 0
-        ), "num_heads must divide embedding_dim."
+        assert self.internal_dim % num_heads == 0, "num_heads must divide embedding_dim."
 
         self.q_proj = nn.Linear(embedding_dim, self.internal_dim)
         self.k_proj = nn.Linear(self.kv_in_dim, self.internal_dim)
@@ -283,17 +280,13 @@ class RoPEAttention(Attention):
             compute_axial_cis, dim=self.internal_dim // self.num_heads, theta=rope_theta
         )
         device = torch.device("cuda") if torch.cuda.is_available() else None
-        self.freqs_cis = self.compute_cis(
-            end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
-        )
+        self.freqs_cis = self.compute_cis(end_x=feat_sizes[0], end_y=feat_sizes[1], device=device)
         if self.use_rope_real:
             self.freqs_cis_real = self.freqs_cis.real
             self.freqs_cis_imag = self.freqs_cis.imag
         self.rope_k_repeat = rope_k_repeat
 
-    def forward(
-        self, q: Tensor, k: Tensor, v: Tensor, num_k_exclude_rope: int = 0
-    ) -> Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor, num_k_exclude_rope: int = 0) -> Tensor:
         # Input projections
         q = self.q_proj(q)
         k = self.k_proj(k)

@@ -11,9 +11,7 @@ try:
 
     HAS_NUMBA = True
 except ImportError:
-    warnings.warn(
-        "Numba not found. Using slower pure Python implementations.", UserWarning
-    )
+    warnings.warn("Numba not found. Using slower pure Python implementations.", UserWarning)
 
 
 # -------------------- Helper Functions --------------------
@@ -92,9 +90,7 @@ def process_frame_level_nms(video_groups: Dict, nms_threshold: float) -> Dict:
                     frame_detections.append(
                         {
                             "track_idx": track_idx,
-                            "bbox": np.array(
-                                convert_bbox_format(bbox), dtype=np.float32
-                            ),
+                            "bbox": np.array(convert_bbox_format(bbox), dtype=np.float32),
                             "score": track["score"],
                         }
                     )
@@ -102,9 +98,7 @@ def process_frame_level_nms(video_groups: Dict, nms_threshold: float) -> Dict:
             # Apply NMS
             if frame_detections:
                 bboxes = np.stack([d["bbox"] for d in frame_detections])
-                scores = np.array(
-                    [d["score"] for d in frame_detections], dtype=np.float32
-                )
+                scores = np.array([d["score"] for d in frame_detections], dtype=np.float32)
                 keep = apply_frame_nms(bboxes, scores, nms_threshold)
 
                 # Suppress non-kept detections
@@ -254,9 +248,7 @@ if HAS_NUMBA:
         return ious
 
 
-def apply_frame_nms(
-    bboxes: np.ndarray, scores: np.ndarray, nms_threshold: float
-) -> List[int]:
+def apply_frame_nms(bboxes: np.ndarray, scores: np.ndarray, nms_threshold: float) -> List[int]:
     """Frame-level NMS implementation with fallback to pure Python"""
     if HAS_NUMBA:
         return _apply_frame_nms_numba(bboxes, scores, nms_threshold)
@@ -274,9 +266,7 @@ def apply_frame_nms(
                 remaining_bboxes = bboxes[order[i + 1 :]]
                 if len(remaining_bboxes) > 0:  # Check if there are any remaining boxes
                     ious = compute_frame_ious(current_bbox, remaining_bboxes)
-                    suppress[order[i + 1 :]] = suppress[order[i + 1 :]] | (
-                        ious >= nms_threshold
-                    )
+                    suppress[order[i + 1 :]] = suppress[order[i + 1 :]] | (ious >= nms_threshold)
 
         return keep
 
@@ -296,11 +286,7 @@ if HAS_NUMBA:
                 current_bbox = bboxes[order[i]]
 
                 if i + 1 < len(order):  # Check bounds
-                    ious = _compute_frame_ious_numba(
-                        current_bbox, bboxes[order[i + 1 :]]
-                    )
-                    suppress[order[i + 1 :]] = suppress[order[i + 1 :]] | (
-                        ious >= nms_threshold
-                    )
+                    ious = _compute_frame_ious_numba(current_bbox, bboxes[order[i + 1 :]])
+                    suppress[order[i + 1 :]] = suppress[order[i + 1 :]] | (ious >= nms_threshold)
 
         return keep

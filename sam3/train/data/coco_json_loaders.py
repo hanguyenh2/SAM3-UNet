@@ -7,7 +7,6 @@ from typing import Dict, List, Tuple
 import torch
 from pycocotools import mask as mask_util
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -44,7 +43,7 @@ def load_coco_and_group_by_image(json_path: str) -> Tuple[List[Dict], Dict[int, 
             - List of dicts with 'image' and 'annotations' keys
             - Dict mapping category IDs to category names
     """
-    with open(json_path, "r") as f:
+    with open(json_path) as f:
         coco = json.load(f)
 
     images = {img["id"]: img for img in coco["images"]}
@@ -58,9 +57,7 @@ def load_coco_and_group_by_image(json_path: str) -> Tuple[List[Dict], Dict[int, 
     grouped = []
     for image_id in sorted_image_ids:
         image_info = images[image_id]
-        grouped.append(
-            {"image": image_info, "annotations": anns_by_image.get(image_id, [])}
-        )
+        grouped.append({"image": image_info, "annotations": anns_by_image.get(image_id, [])})
 
     cat_id_to_name = {cat["id"]: cat["name"] for cat in coco["categories"]}
 
@@ -120,16 +117,12 @@ class COCO_FROM_JSON:
             prompts: Optional custom prompts for categories
             include_negatives (bool): Whether to include negative examples (categories with no instances)
         """
-        self._raw_data, self._cat_idx_to_text = load_coco_and_group_by_image(
-            annotation_file
-        )
+        self._raw_data, self._cat_idx_to_text = load_coco_and_group_by_image(annotation_file)
         self._sorted_cat_ids = sorted(list(self._cat_idx_to_text.keys()))
         self.prompts = None
         self.include_negatives = include_negatives
         self.category_chunk_size = (
-            category_chunk_size
-            if category_chunk_size is not None
-            else len(self._sorted_cat_ids)
+            category_chunk_size if category_chunk_size is not None else len(self._sorted_cat_ids)
         )
         self.category_chunks = [
             self._sorted_cat_ids[i : i + self.category_chunk_size]
@@ -199,9 +192,7 @@ class COCO_FROM_JSON:
         for ann in raw_annotations:
             cat_id_to_anns[ann["category_id"]].append(ann)
 
-        annotations_by_cat_sorted = [
-            (cat_id, cat_id_to_anns[cat_id]) for cat_id in cat_chunk
-        ]
+        annotations_by_cat_sorted = [(cat_id, cat_id_to_anns[cat_id]) for cat_id in cat_chunk]
 
         for cat_id, anns in annotations_by_cat_sorted:
             if len(anns) == 0 and not self.include_negatives:
@@ -241,9 +232,7 @@ class COCO_FROM_JSON:
             query["id"] = len(queries)
             query["original_cat_id"] = cat_id
             query["query_text"] = (
-                self._cat_idx_to_text[cat_id]
-                if self.prompts is None
-                else self.prompts[cat_id]
+                self._cat_idx_to_text[cat_id] if self.prompts is None else self.prompts[cat_id]
             )
             query["object_ids_output"] = cur_ann_ids
             queries.append(query)
@@ -290,7 +279,7 @@ class SAM3_EVAL_API_FROM_JSON_NP:
         Args:
             annotation_file (str): Path to SAM3 JSON annotation file
         """
-        with open(annotation_file, "r") as f:
+        with open(annotation_file) as f:
             data = json.load(f)
         self._image_data = data["images"]
 
@@ -371,7 +360,7 @@ class SAM3_VEVAL_API_FROM_JSON_NP:
         Args:
             annotation_file (str): Path to SAM3 video JSON annotation file
         """
-        with open(annotation_file, "r") as f:
+        with open(annotation_file) as f:
             data = json.load(f)
 
         assert "video_np_pairs" in data, "Incorrect data format"
@@ -388,8 +377,7 @@ class SAM3_VEVAL_API_FROM_JSON_NP:
                 video_np_dict["category_id"]
             )
             assert (
-                self._cat_id_to_np[video_np_dict["category_id"]]
-                == video_np_dict["noun_phrase"]
+                self._cat_id_to_np[video_np_dict["category_id"]] == video_np_dict["noun_phrase"]
             ), "Category name does not match text input"
 
     def getDatapointIds(self):

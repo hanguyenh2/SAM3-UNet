@@ -41,7 +41,7 @@ scratch:
   use_presence_eval: True
   original_box_postprocessor:
     _target_: sam3.eval.postprocessors.PostProcessImage
-    max_dets_per_img: -1  # infinite detections
+    max_dets_per_img: -1 # infinite detections
     use_original_ids: true
     use_original_sizes_box: true
     use_presence: ${scratch.use_presence_eval}
@@ -139,8 +139,7 @@ trainer:
 
   checkpoint:
     save_dir: ${launcher.experiment_log_dir}/checkpoints
-    save_freq: 0  # 0 only last checkpoint is saved.
-
+    save_freq: 0 # 0 only last checkpoint is saved.
 
   logging:
     tensorboard_writer:
@@ -234,17 +233,17 @@ all_odinw_supercategories:
       img_folder: thermalDogsAndPeople/test/
       json: thermalDogsAndPeople/test/annotations_without_background.json
 
-
 odinw35_prompts:
-  AerialMaritimeDrone_large: '[{"id": 1, "name": "boat", "supercategory": "movable-objects"},
+  AerialMaritimeDrone_large:
+    '[{"id": 1, "name": "boat", "supercategory": "movable-objects"},
     {"id": 2, "name": "car", "supercategory": "movable-objects"}, {"id": 3, "name": "dock",
     "supercategory": "movable-objects"}, {"id": 4, "name": "jet ski", "supercategory": "movable-objects"},
     {"id": 5, "name": "boat lift", "supercategory": "movable-objects"}]'
   Aquarium: null
   CottontailRabbits: null
   EgoHands_generic: null
-  NorthAmericaMushrooms: '[{''id'': 1, ''name'':
-    ''chicken of the woods'', ''supercategory'': ''mushroom''}, {''id'': 2, ''name'': ''chanterelle'', ''supercategory'': ''mushroom''}]'
+  NorthAmericaMushrooms: "[{'id': 1, 'name':
+    'chicken of the woods', 'supercategory': 'mushroom'}, {'id': 2, 'name': 'chanterelle', 'supercategory': 'mushroom'}]"
   Packages: null
   PascalVOC: null
   Raccoon: null

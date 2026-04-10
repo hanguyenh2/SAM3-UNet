@@ -14,7 +14,6 @@ paths:
     - ${paths.base_annotation_path}/gold_wiki_common_merged_b_release_test.json
     - ${paths.base_annotation_path}/gold_wiki_common_merged_c_release_test.json
 
-
 # ============================================================================
 # Trainer Configuration
 # ============================================================================

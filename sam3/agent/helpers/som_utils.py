@@ -265,9 +265,7 @@ class ColorPalette:
 
         # Calculate the Euclidean distance between the colors and each pixel in the image
         # Broadcasting happens here: img_array shape is (num_pixels, 3), color_values shape is (num_colors, 3)
-        distances = np.sqrt(
-            np.sum((img_array[:, np.newaxis, :] - color_values) ** 2, axis=2)
-        )
+        distances = np.sqrt(np.sum((img_array[:, np.newaxis, :] - color_values) ** 2, axis=2))
 
         # Average the distances for each color
         mean_distances = np.mean(distances, axis=0)
@@ -400,7 +398,5 @@ def _change_color_brightness(color, brightness_factor):
     modified_lightness = polygon_color[1] + (brightness_factor * polygon_color[1])
     modified_lightness = 0.0 if modified_lightness < 0.0 else modified_lightness
     modified_lightness = 1.0 if modified_lightness > 1.0 else modified_lightness
-    modified_color = colorsys.hls_to_rgb(
-        polygon_color[0], modified_lightness, polygon_color[2]
-    )
+    modified_color = colorsys.hls_to_rgb(polygon_color[0], modified_lightness, polygon_color[2])
     return modified_color

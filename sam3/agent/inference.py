@@ -58,7 +58,7 @@ def run_single_image_inference(
     json.dump(agent_history, open(agent_history_path, "w"), indent=4)
     rendered_final_output.save(output_image_path)
 
-    print(f"\n✅ Successfully processed single image!")
+    print("\n✅ Successfully processed single image!")
     print(f"Output JSON: {output_json_path}")
     print(f"Output Image: {output_image_path}")
     print(f"Agent History: {agent_history_path}")

@@ -32,15 +32,11 @@ recursive_contiguous = recursive_fn_factory(lambda x: x.contiguous())
 recursive_clone = recursive_fn_factory(torch.clone)
 
 
-def compile_wrapper(
-    fn, *, mode="max-autotune", fullgraph=True, dynamic=False, name=None
-):
+def compile_wrapper(fn, *, mode="max-autotune", fullgraph=True, dynamic=False, name=None):
     compiled_fn = torch.compile(fn, mode=mode, fullgraph=fullgraph, dynamic=dynamic)
 
     def compiled_fn_wrapper(*args, **kwargs):
-        with torch.autograd.profiler.record_function(
-            f"compiled {fn}" if name is None else name
-        ):
+        with torch.autograd.profiler.record_function(f"compiled {fn}" if name is None else name):
             cont_args = recursive_contiguous(args)
             cont_kwargs = recursive_contiguous(kwargs)
             result = compiled_fn(*cont_args, **cont_kwargs)
@@ -78,8 +74,7 @@ def shape_logging_wrapper(fn, keep_kwargs, enable_logging=False):
         shapes = tuple(get_shape(arg) for arg in args) + tuple(
             (k, get_shape(v))
             for k, v in kwargs.items()
-            if isinstance(v, (torch.Tensor, list))
-            and (len(keep_kwargs) > 0 and k in keep_kwargs)
+            if isinstance(v, (torch.Tensor, list)) and (len(keep_kwargs) > 0 and k in keep_kwargs)
         )
         if shapes not in seen_shapes:
             seen_shapes.add(shapes)

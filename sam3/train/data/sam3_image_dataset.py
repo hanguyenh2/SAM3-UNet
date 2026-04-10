@@ -9,18 +9,15 @@ import sys
 import traceback
 from collections import Counter
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.utils.data
 import torchvision
-from decord import cpu, VideoReader
+from decord import VideoReader, cpu
 from iopath.common.file_io import g_pathmgr
-
 from PIL import Image as PILImage
 from PIL.Image import DecompressionBombError
-
 from sam3.model.box_ops import box_xywh_to_xyxy
 from torchvision.datasets.vision import VisionDataset
 
@@ -194,7 +191,7 @@ class CustomCocoDetectionAPI(VisionDataset):
                 mask_fname = os.path.basename(path).replace(".jpg", "-mask.json")
                 mask_path = os.path.join(self.blurring_masks_path, mask_fname)
                 if os.path.exists(mask_path):
-                    with open(mask_path, "r") as fopen:
+                    with open(mask_path) as fopen:
                         current_meta["blurring_mask"] = json.load(fopen)
 
             all_img_metadata.append(current_meta)
@@ -208,9 +205,7 @@ class CustomCocoDetectionAPI(VisionDataset):
                     all_images.append(
                         (
                             img_id,
-                            torchvision.transforms.ToPILImage()(
-                                video[int(frame)].asnumpy()
-                            ),
+                            torchvision.transforms.ToPILImage()(video[int(frame)].asnumpy()),
                         )
                     )
                 else:
@@ -297,16 +292,10 @@ class CustomCocoDetectionAPI(VisionDataset):
                 Object(
                     bbox=bbox[0],
                     area=annotation["area"],
-                    object_id=(
-                        annotation["object_id"] if "object_id" in annotation else -1
-                    ),
-                    frame_index=(
-                        annotation["frame_index"] if "frame_index" in annotation else -1
-                    ),
+                    object_id=(annotation["object_id"] if "object_id" in annotation else -1),
+                    frame_index=(annotation["frame_index"] if "frame_index" in annotation else -1),
                     segment=segment,
-                    is_crowd=(
-                        annotation["is_crowd"] if "is_crowd" in annotation else None
-                    ),
+                    is_crowd=(annotation["is_crowd"] if "is_crowd" in annotation else None),
                     source=annotation["source"] if "source" in annotation else "",
                 )
             )
@@ -339,9 +328,9 @@ class CustomCocoDetectionAPI(VisionDataset):
                 bbox[:, 0::2].mul_(w).clamp_(min=0, max=w)
                 bbox[:, 1::2].mul_(h).clamp_(min=0, max=h)
                 if "input_box_label" in query and query["input_box_label"] is not None:
-                    bbox_label = torch.as_tensor(
-                        query["input_box_label"], dtype=torch.long
-                    ).view(-1)
+                    bbox_label = torch.as_tensor(query["input_box_label"], dtype=torch.long).view(
+                        -1
+                    )
                     assert len(bbox_label) == len(bbox)
                 else:
                     # assume the boxes are positives
@@ -394,9 +383,7 @@ class CustomCocoDetectionAPI(VisionDataset):
                 FindQueryLoaded(
                     # id=query["id"],
                     # query_type=qtype,
-                    query_text=(
-                        query["query_text"] if query["query_text"] is not None else ""
-                    ),
+                    query_text=(query["query_text"] if query["query_text"] is not None else ""),
                     image_id=id2index_img[query["image_id"]],
                     input_bbox=bbox,
                     input_bbox_label=bbox_label,
@@ -408,9 +395,7 @@ class CustomCocoDetectionAPI(VisionDataset):
                     is_pixel_exhaustive=(
                         query["is_pixel_exhaustive"]
                         if "is_pixel_exhaustive" in query
-                        else (
-                            query["is_exhaustive"] if query["is_exhaustive"] else None
-                        )
+                        else (query["is_exhaustive"] if query["is_exhaustive"] else None)
                     ),
                     query_processing_order=query["query_processing_order"],
                     inference_metadata=InferenceMetadata(
@@ -455,7 +440,7 @@ class Sam3ImageDataset(CustomCocoDetectionAPI):
         coco_json_loader: Callable = COCO_FROM_JSON,
         limit_ids: int = None,
     ):
-        super(Sam3ImageDataset, self).__init__(
+        super().__init__(
             img_folder,
             ann_file,
             fix_fname=fix_fname,
@@ -488,7 +473,7 @@ class Sam3ImageDataset(CustomCocoDetectionAPI):
     def __orig_getitem__(self, idx):
         for _ in range(self._MAX_RETRIES):
             try:
-                datapoint = super(Sam3ImageDataset, self).__getitem__(idx)
+                datapoint = super().__getitem__(idx)
 
                 # This can be done better by filtering the offending find queries
                 # However, this requires care:
@@ -500,9 +485,7 @@ class Sam3ImageDataset(CustomCocoDetectionAPI):
                             f"Too many outputs ({len(q.object_ids_output)})"
                         )
 
-                max_queries = (
-                    self.max_train_queries if self.training else self.max_val_queries
-                )
+                max_queries = self.max_train_queries if self.training else self.max_val_queries
 
                 if len(datapoint.find_queries) > max_queries:
                     raise DecompressionBombError(
@@ -521,8 +504,6 @@ class Sam3ImageDataset(CustomCocoDetectionAPI):
                 sys.stderr.write(traceback.format_exc())
                 idx = (idx + 1) % len(self)
         else:
-            raise RuntimeError(
-                f"Failed {self._MAX_RETRIES} times trying to load an image."
-            )
+            raise RuntimeError(f"Failed {self._MAX_RETRIES} times trying to load an image.")
 
         return datapoint

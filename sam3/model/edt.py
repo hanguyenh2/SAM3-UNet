@@ -102,10 +102,7 @@ def edt_kernel(inputs_ptr, outputs_ptr, v, z, height, width, horizontal: tl.cons
     for q in range(length):
         while (
             k + 1 < length
-            and tl.load(
-                z + block_start + ((k + 1) * stride), mask=(k + 1) < length, other=q
-            )
-            < q
+            and tl.load(z + block_start + ((k + 1) * stride), mask=(k + 1) < length, other=q) < q
         ):
             k += 1
         r = tl.load(v + block_start + (k * stride))

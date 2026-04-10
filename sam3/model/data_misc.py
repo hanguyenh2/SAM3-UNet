@@ -3,29 +3,21 @@
 Misc functions, including distributed helpers.
 """
 
-import collections
-import re
-
-from dataclasses import dataclass, field as field_ptr_behaviour, fields, is_dataclass
-from typing import Any, get_args, get_origin, List, Mapping, Optional, Sequence, Union
+from dataclasses import dataclass, fields, is_dataclass
+from typing import Any, List, Optional, Union, get_args, get_origin
 
 import torch
-
 
 MyTensor = Union[torch.Tensor, List[Any]]
 
 
-def interpolate(
-    input, size=None, scale_factor=None, mode="nearest", align_corners=None
-):
+def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corners=None):
     # type: (Tensor, Optional[List[int]], Optional[float], str, Optional[bool]) -> Tensor
     """
     Equivalent to nn.functional.interpolate, but with support for empty channel sizes.
     """
     if input.numel() > 0:
-        return torch.nn.functional.interpolate(
-            input, size, scale_factor, mode, align_corners
-        )
+        return torch.nn.functional.interpolate(input, size, scale_factor, mode, align_corners)
 
     assert (
         input.shape[0] != 0 or input.shape[1] != 0
@@ -38,9 +30,7 @@ def interpolate(
         ).transpose(0, 1)
 
     # empty batch dimension is now supported in pytorch
-    return torch.nn.functional.interpolate(
-        input, size, scale_factor, mode, align_corners
-    )
+    return torch.nn.functional.interpolate(input, size, scale_factor, mode, align_corners)
 
 
 @dataclass

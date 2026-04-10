@@ -320,11 +320,7 @@ def visualize_formatted_frame_output(
 
         objects_drawn = 0
         for obj_id, binary_mask in _outputs.items():
-            mask_sum = (
-                binary_mask.sum()
-                if hasattr(binary_mask, "sum")
-                else np.sum(binary_mask)
-            )
+            mask_sum = binary_mask.sum() if hasattr(binary_mask, "sum") else np.sum(binary_mask)
 
             if mask_sum > 0:  # Only draw if mask has content
                 # Convert to torch tensor if it's not already
@@ -353,9 +349,7 @@ def visualize_formatted_frame_output(
 
                 # Convert back to numpy for plotting
                 mask_np = (
-                    binary_mask.numpy()
-                    if isinstance(binary_mask, torch.Tensor)
-                    else binary_mask
+                    binary_mask.numpy() if isinstance(binary_mask, torch.Tensor) else binary_mask
                 )
                 plot_mask(mask_np, color=color, ax=ax)
                 objects_drawn += 1
@@ -375,9 +369,7 @@ def visualize_formatted_frame_output(
 
         # Draw additional points if provided
         if points_list is not None and points_list[idx] is not None:
-            show_points(
-                points_list[idx], points_labels_list[idx], ax=ax, marker_size=200
-            )
+            show_points(points_list[idx], points_labels_list[idx], ax=ax, marker_size=200)
 
         ax.axis("off")
 
@@ -483,9 +475,7 @@ def save_masklet_video(video_frames, outputs, out_path, alpha=0.5, fps=10):
 
     for frame, frame_idx, frame_outputs in tqdm(outputs_list):
         img = load_frame(frame)
-        overlay = render_masklet_frame(
-            img, frame_outputs, frame_idx=frame_idx, alpha=alpha
-        )
+        overlay = render_masklet_frame(img, frame_outputs, frame_idx=frame_idx, alpha=alpha)
         writer.write(cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
 
     writer.release()
@@ -619,9 +609,7 @@ def pascal_color_map():
     return colormap.astype(np.uint8)
 
 
-def draw_masks_to_frame(
-    frame: np.ndarray, masks: np.ndarray, colors: np.ndarray
-) -> np.ndarray:
+def draw_masks_to_frame(frame: np.ndarray, masks: np.ndarray, colors: np.ndarray) -> np.ndarray:
     masked_frame = frame
     for mask, color in zip(masks, colors):
         curr_masked_frame = np.where(mask[..., None], color, masked_frame)
@@ -640,12 +628,8 @@ def draw_masks_to_frame(
                 cv2.CHAIN_APPROX_NONE,
             )
 
-        cv2.drawContours(
-            masked_frame, contours, -1, (255, 255, 255), 7
-        )  # White outer contour
-        cv2.drawContours(
-            masked_frame, contours, -1, (0, 0, 0), 5
-        )  # Black middle contour
+        cv2.drawContours(masked_frame, contours, -1, (255, 255, 255), 7)  # White outer contour
+        cv2.drawContours(masked_frame, contours, -1, (0, 0, 0), 5)  # Black middle contour
         cv2.drawContours(
             masked_frame, contours, -1, color.tolist(), 3
         )  # Original color inner contour
@@ -653,7 +637,7 @@ def draw_masks_to_frame(
 
 
 def get_annot_df(file_path: str):
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         data = json.load(f)
 
     dfs = {}
@@ -701,14 +685,10 @@ def get_all_annotations_for_frame(
 
     # Get the frame
     video_df_current = video_df[video_df.id == video_id]
-    assert (
-        len(video_df_current) == 1
-    ), f"Expected 1 video row, got {len(video_df_current)}"
+    assert len(video_df_current) == 1, f"Expected 1 video row, got {len(video_df_current)}"
     video_row = video_df_current.iloc[0]
     file_name = video_row.file_names[frame_idx]
-    file_path = os.path.join(
-        get_media_dir(media_dir=media_dir, dataset=dataset), file_name
-    )
+    file_path = os.path.join(get_media_dir(media_dir=media_dir, dataset=dataset), file_name)
     frame = cv2.imread(file_path)
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -901,9 +881,7 @@ def show_mask(mask, ax, obj_id=None, random_color=False):
 def show_box(box, ax):
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(
-        plt.Rectangle((x0, y0), w, h, edgecolor="green", facecolor=(0, 0, 0, 0), lw=2)
-    )
+    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor="green", facecolor=(0, 0, 0, 0), lw=2))
 
 
 def show_points(coords, labels, ax, marker_size=375):

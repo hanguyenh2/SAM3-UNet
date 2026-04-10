@@ -29,7 +29,6 @@ from sam3.train.utils.distributed import (
     is_main_process,
 )
 
-
 ### Helper functions and classes
 
 
@@ -130,21 +129,16 @@ class PredictionDumper:
 
         if not self.merge_predictions:
             dumped_file = (
-                Path(self.dump_dir)
-                / f"coco_predictions_{self.iou_type}_{get_rank()}.json"
+                Path(self.dump_dir) / f"coco_predictions_{self.iou_type}_{get_rank()}.json"
             )
-            logging.info(
-                f"Prediction Dumper: Dumping local predictions to {dumped_file}"
-            )
+            logging.info(f"Prediction Dumper: Dumping local predictions to {dumped_file}")
             with g_pathmgr.open(str(dumped_file), "w") as f:
                 json.dump(self.dump, f)
         else:
             self.dump = self.gather_and_merge_predictions()
             dumped_file = Path(self.dump_dir) / f"coco_predictions_{self.iou_type}.json"
             if is_main_process():
-                logging.info(
-                    f"Prediction Dumper: Dumping merged predictions to {dumped_file}"
-                )
+                logging.info(f"Prediction Dumper: Dumping merged predictions to {dumped_file}")
                 with g_pathmgr.open(str(dumped_file), "w") as f:
                     json.dump(self.dump, f)
 

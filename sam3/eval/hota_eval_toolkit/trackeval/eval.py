@@ -86,9 +86,7 @@ class Evaluator:
             target_video = [vid2name[video_id] for video_id in target_video_ids]
 
             if len(target_video) == 0:
-                raise TrackEvalException(
-                    "No sequences found with the tag %s" % target_tag
-                )
+                raise TrackEvalException("No sequences found with the tag %s" % target_tag)
 
             target_annotations = [
                 annot
@@ -109,8 +107,7 @@ class Evaluator:
                 curr_res = {
                     seq_key: seq_value[c_cls][metric_name]
                     for seq_key, seq_value in res.items()
-                    if not seq_key.startswith("COMBINED_SEQ")
-                    and seq_key in target_video
+                    if not seq_key.startswith("COMBINED_SEQ") and seq_key in target_video
                 }
                 res[res_field][c_cls][metric_name] = metric.combine_sequences(curr_res)
         # combine classes
@@ -145,9 +142,7 @@ class Evaluator:
                         for cls_key, cls_value in res[res_field].items()
                         if cls_key in sub_cats
                     }
-                    res[res_field][cat][metric_name] = (
-                        metric.combine_classes_det_averaged(cat_res)
-                    )
+                    res[res_field][cat][metric_name] = metric.combine_classes_det_averaged(cat_res)
         return res, combined_cls_keys
 
     def _summarize_results(
@@ -163,9 +158,7 @@ class Evaluator:
         config = self.config
         output_fol = dataset.get_output_fol(tracker)
         tracker_display_name = dataset.get_display_name(tracker)
-        for c_cls in res[
-            res_field
-        ].keys():  # class_list + combined classes if calculated
+        for c_cls in res[res_field].keys():  # class_list + combined classes if calculated
             summaries = []
             details = []
             num_dets = res[res_field][c_cls]["Count"]["Dets"]
@@ -182,8 +175,7 @@ class Evaluator:
 
                     if config["PRINT_RESULTS"] and config["PRINT_ONLY_COMBINED"]:
                         dont_print = (
-                            dataset.should_classes_combine
-                            and c_cls not in combined_cls_keys
+                            dataset.should_classes_combine and c_cls not in combined_cls_keys
                         )
                         if not dont_print:
                             metric.print_table(
@@ -265,9 +257,7 @@ class Evaluator:
                                     metric_names=metric_names,
                                 )
                                 results = []
-                                for r in pool.imap(
-                                    _eval_sequence, seq_list_sorted, chunksize=20
-                                ):
+                                for r in pool.imap(_eval_sequence, seq_list_sorted, chunksize=20):
                                     results.append(r)
                                     pbar.update()
                                 res = dict(zip(seq_list_sorted, results))
@@ -313,9 +303,7 @@ class Evaluator:
                         res, metrics_list, metric_names, dataset, "COMBINED_SEQ"
                     )
 
-                    if np.all(
-                        ["tags" in annot for annot in dataset.gt_data["annotations"]]
-                    ):
+                    if np.all(["tags" in annot for annot in dataset.gt_data["annotations"]]):
                         # Combine results over the challenging sequences and then over all classes
                         # currently only support "tracking_challenging_pair"
                         res, _ = self._combine_results(

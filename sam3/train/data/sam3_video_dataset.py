@@ -1,26 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved
 
 import copy
-
-import io
-import json
 import logging
 import math
-import os
-import pickle
 import random
-import sys
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-
-import torch
-import torchvision
-
-# from decord import cpu, VideoReader
-
-from iopath.common.file_io import PathManager
-from PIL import Image as PILImage
 
 from .sam3_image_dataset import Datapoint, Sam3ImageDataset
+
+# from decord import cpu, VideoReader
 
 
 SEED = 42
@@ -97,17 +84,13 @@ class VideoGroundingDataset(Sam3ImageDataset):
         # we subsample the video frames during training
         if self.training and not self.is_tiling_single_image:
             # pick a random stride for sampling query stages (`randint` includes both ends)
-            stage_stride = self.rng.randint(
-                self.stage_stride_min, self.stage_stride_max
-            )
+            stage_stride = self.rng.randint(self.stage_stride_min, self.stage_stride_max)
             stage_ids_to_keep = self._sample_stage_ids(
                 queries, self.num_stages_sample, stage_stride
             )
             # filter the queries and annotations to keep only the selected stages
             # (also remap the stage ids so that they are contiguous and start from 0)
-            reverse_time_axis = (
-                self.rng.random() < 0.5 if self.random_reverse_time_axis else False
-            )
+            reverse_time_axis = self.rng.random() < 0.5 if self.random_reverse_time_axis else False
             queries, annotations, kept_img_ids = self._filter_query_and_anns(
                 queries,
                 annotations,
@@ -162,7 +145,7 @@ class VideoGroundingDataset(Sam3ImageDataset):
     def _sample_stage_ids(self, queries, num_stages_sample, stage_stride):
         """Sample a subset of stage ids from all queries."""
         # Later we can perhaps turn it into a Sampler class to be more flexible.
-        all_stage_ids = sorted(set(q["query_processing_order"] for q in queries))
+        all_stage_ids = sorted({q["query_processing_order"] for q in queries})
         num_stages_total = len(all_stage_ids)
         if num_stages_total < num_stages_sample:
             raise ValueError("Not enough stages to sample")
@@ -221,14 +204,10 @@ class VideoGroundingDataset(Sam3ImageDataset):
                 assert (
                     ptr_x_is_empty and ptr_y_is_empty
                 ), "Remapping stage ids is not supported for queries with non-empty ptr_x or ptr_y pointers"
-                query["query_processing_order"] = stage_id_old2new[
-                    query["query_processing_order"]
-                ]
+                query["query_processing_order"] = stage_id_old2new[query["query_processing_order"]]
 
         # Filter annotations -- keep those annotations with image_id in `kept_img_ids`
-        filtered_annotations = [
-            ann for ann in annotations if ann["image_id"] in kept_img_ids
-        ]
+        filtered_annotations = [ann for ann in annotations if ann["image_id"] in kept_img_ids]
 
         return filtered_queries, filtered_annotations, kept_img_ids
 
@@ -240,9 +219,7 @@ class VideoGroundingDataset(Sam3ImageDataset):
         """
         # tile `images: List[Image]`
         assert len(datapoint.images) == 1, "Expected only one single image"
-        tiled_images = [
-            copy.deepcopy(datapoint.images[0]) for _ in range(num_stages_sample)
-        ]
+        tiled_images = [copy.deepcopy(datapoint.images[0]) for _ in range(num_stages_sample)]
         for stage_id, img in enumerate(tiled_images):
             for obj in img.objects:
                 obj.frame_index = stage_id
@@ -251,9 +228,7 @@ class VideoGroundingDataset(Sam3ImageDataset):
         tiled_raw_images = None
         if datapoint.raw_images is not None:
             assert len(datapoint.raw_images) == 1, "Expected only one single image"
-            tiled_raw_images = [
-                datapoint.raw_images[0].copy() for _ in range(num_stages_sample)
-            ]
+            tiled_raw_images = [datapoint.raw_images[0].copy() for _ in range(num_stages_sample)]
 
         # tile `find_queries: List[FindQueryLoaded]`
         tiled_find_queries_per_stage = [[] for _ in range(num_stages_sample)]
@@ -267,9 +242,7 @@ class VideoGroundingDataset(Sam3ImageDataset):
             # assert query.wkdata_qid is None
             # assert query.other_positive_qids is None
             # assert query.negative_qids is None
-            has_geo_input = (
-                query.input_bbox is not None or query.input_points is not None
-            )
+            has_geo_input = query.input_bbox is not None or query.input_points is not None
             if has_geo_input and not self.tile_img_keep_find_queries_with_geo_inputs:
                 continue
             for stage_id in range(num_stages_sample):
