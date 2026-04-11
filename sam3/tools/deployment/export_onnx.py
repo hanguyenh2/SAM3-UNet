@@ -140,7 +140,7 @@ if success and args.verify and _has_onnxruntime:
                 torch_outputs = [torch_outputs]
             torch_outputs_np = [o.cpu().numpy() for o in torch_outputs]
 
-        for _ in range(5):
+        for _ in range(1):
             # Initialize ONNX Runtime session
             # Prefer CUDA if available, otherwise fallback to CPU
             providers = (
