@@ -191,7 +191,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--epoch", type=int, default=500, help="training epochs")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    parser.add_argument("--batch_size", default=14, type=int)
+    parser.add_argument("--batch_size", default=20, type=int)
     parser.add_argument("--size", default=960, type=int)
     parser.add_argument("--weight_decay", default=5e-4, type=float)
     parser.add_argument("--save_interval", default=20, type=int)
