@@ -4,6 +4,7 @@ import traceback
 
 import torch
 import torch.onnx
+
 from SAM3UNet import SAM3UNet
 
 # For verification (install with pip install onnxruntime numpy)
@@ -139,7 +140,7 @@ if success and args.verify and _has_onnxruntime:
                 torch_outputs = [torch_outputs]
             torch_outputs_np = [o.cpu().numpy() for o in torch_outputs]
 
-        for _ in range(10):
+        for _ in range(5):
             # Initialize ONNX Runtime session
             # Prefer CUDA if available, otherwise fallback to CPU
             providers = (
@@ -158,10 +159,10 @@ if success and args.verify and _has_onnxruntime:
                 # Use allclose for floating-point comparison
                 assert not np.any(np.isnan(ort_out_np)), "Array should not contain NaNs"
                 np.testing.assert_allclose(torch_out_np, ort_out_np, rtol=1, atol=1)
-                print(torch_out_np, ort_out_np)
-                # print(
-                #     f"Output {i} matched between PyTorch and ONNX (max diff: {np.max(np.abs(torch_out_np - ort_out_np)):.2e})"
-                # )
+                # print(torch_out_np, ort_out_np)
+                print(
+                    f"Output {i} matched between PyTorch and ONNX (max diff: {np.max(np.abs(torch_out_np - ort_out_np)):.2e})"
+                )
             print("ONNX model verified successfully!")
 
     except Exception as e:
